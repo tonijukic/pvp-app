@@ -1,0 +1,15 @@
+{
+  "name": "PVP Ops — Pravo v praksi",
+  "short_name": "PVP Ops",
+  "description": "Zadeve, roki, ure in stroški za Pravo v praksi.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0D332B",
+  "theme_color": "#0D332B",
+  "lang": "sl",
+  "icons": [
+    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

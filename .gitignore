@@ -1,0 +1,12 @@
+node_modules
+dist
+.DS_Store
+server/public
+vite.config.ts.*
+*.tar.gz
+.env
+/.idea
+/.data
+
+# PVP generated email previews (contain matter data)
+.previews/

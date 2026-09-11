@@ -1,0 +1,22 @@
+# pnpm settings (see README "Dependency & security policy").
+
+# Block ALL dependency lifecycle scripts (postinstall etc.) except this
+# allowlist. This is pnpm's key supply-chain defense over npm: a malicious
+# dependency cannot run code on install. esbuild legitimately needs to build
+# its native binary, so it is allowed.
+allowBuilds:
+  esbuild: true
+
+# Force-patch transitive deps here when a nested dependency is vulnerable or
+# deprecated and has no upstream fix. Replaces the deprecated esbuild-kit loader
+# (pulled in by drizzle-kit) with tsx.
+overrides:
+  "@esbuild-kit/esm-loader": "npm:tsx@^4.20.4"
+
+# NOTE: pnpm's native `minimumReleaseAge` (publish-age cooldown) is intentionally
+# NOT enabled here. pnpm validates it against every lockfile entry on every
+# install (even --frozen-lockfile) and does not auto-select an older version, so
+# on an actively-published dependency tree it deadlocks the install. The
+# publish-age cooldown is therefore enforced at update time by Renovate
+# (`minimumReleaseAge: 7 days` in renovate.json), which is where new versions
+# actually enter the project — without breaking local/CI installs.
