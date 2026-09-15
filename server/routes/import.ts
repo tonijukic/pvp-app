@@ -89,25 +89,44 @@ importRouter.post("/", requireAdmin, async (req, res: Response) => {
   const codes = new Set<string>();
   zadeve.forEach((r, i) => {
     const line = i + 2; // header is row 1
+    const rowErrs: string[] = [];
+
     const code = str(r.koda);
-    if (!code) errors.push({ sheet: "zadeve", row: line, message: "manjka 'koda'" });
-    else if (codes.has(code.toLowerCase())) errors.push({ sheet: "zadeve", row: line, message: `podvojena koda '${code}'` });
-    codes.add(code.toLowerCase());
+    if (!code) rowErrs.push("manjka 'koda'");
+    else if (codes.has(code.toLowerCase())) rowErrs.push(`podvojena koda '${code}'`);
+    if (code) codes.add(code.toLowerCase());
+
+    // Enum columns are required and MUST resolve. (insertMatterSchema treats
+    // them as optional because the DB columns have defaults, so a typo would
+    // silently fall back to the default — we validate explicitly here.)
+    const areaRaw = str(r.podrocje);
+    const area = resolveArea(areaRaw);
+    if (!areaRaw) rowErrs.push("manjka 'podrocje'");
+    else if (!area) rowErrs.push(`neveljavno področje '${areaRaw}'`);
+    const billRaw = str(r.obracun);
+    const billingType = resolveBilling(billRaw);
+    if (!billRaw) rowErrs.push("manjka 'obracun'");
+    else if (!billingType) rowErrs.push(`neveljaven obračun '${billRaw}'`);
+    const statRaw = str(r.status);
+    const status = resolveStatus(statRaw);
+    if (!statRaw) rowErrs.push("manjka 'status'");
+    else if (!status) rowErrs.push(`neveljaven status '${statRaw}'`);
 
     let assignedTo: string | undefined;
     const nosilec = str(r.nosilec);
-    if (nosilec) {
+    if (!nosilec) rowErrs.push("manjka 'nosilec'");
+    else {
       const resolved = people.get(nosilec.toLowerCase());
-      if (!resolved) errors.push({ sheet: "zadeve", row: line, message: `nosilec '${nosilec}' ni med člani ekipe — najprej ga dodaj v Nastavitve` });
+      if (!resolved) rowErrs.push(`nosilec '${nosilec}' ni med člani ekipe — najprej ga dodaj v Nastavitve`);
       assignedTo = resolved;
     }
 
     const candidate = {
       client: str(r.stranka),
       title: str(r.naziv_zadeve),
-      area: resolveArea(r.podrocje),
-      billingType: resolveBilling(r.obracun),
-      status: resolveStatus(r.status),
+      area,
+      billingType,
+      status,
       openedAt: str(r.odprto) || undefined,
       hourlyRate: num(r.urna_postavka),
       flatFee: num(r.pavsal),
@@ -116,10 +135,11 @@ importRouter.post("/", requireAdmin, async (req, res: Response) => {
     };
     const parsed = insertMatterSchema.safeParse(candidate);
     if (!parsed.success) {
-      errors.push({ sheet: "zadeve", row: line, message: parsed.error.issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; ") });
-    } else if (code) {
-      matters.push({ code: code.toLowerCase(), data: parsed.data });
+      rowErrs.push(parsed.error.issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; "));
     }
+
+    if (rowErrs.length) rowErrs.forEach((m) => errors.push({ sheet: "zadeve", row: line, message: m }));
+    else if (parsed.success && code) matters.push({ code: code.toLowerCase(), data: parsed.data });
   });
 
   // --- validate deadlines (linked by koda_zadeve) ---
@@ -127,25 +147,35 @@ importRouter.post("/", requireAdmin, async (req, res: Response) => {
   const deadlines: { code: string; data: InsertDeadline }[] = [];
   roki.forEach((r, i) => {
     const line = i + 2;
+    const rowErrs: string[] = [];
     const code = str(r.koda_zadeve).toLowerCase();
-    if (!code) { errors.push({ sheet: "roki", row: line, message: "manjka 'koda_zadeve'" }); return; }
-    if (!codes.has(code)) { errors.push({ sheet: "roki", row: line, message: `koda_zadeve '${r.koda_zadeve}' se ne ujema z nobeno zadevo` }); return; }
+    if (!code) rowErrs.push("manjka 'koda_zadeve'");
+    else if (!codes.has(code)) rowErrs.push(`koda_zadeve '${r.koda_zadeve}' se ne ujema z nobeno zadevo`);
+
+    const vrstaRaw = str(r.vrsta);
+    const kind = vrstaRaw ? resolveKind(vrstaRaw) : "interni";
+    if (vrstaRaw && !kind) rowErrs.push(`neveljavna vrsta '${vrstaRaw}'`);
+    const ponRaw = str(r.ponavljanje);
+    const recurrence = ponRaw ? resolveRecurrence(ponRaw) : "enkraten";
+    if (ponRaw && !recurrence) rowErrs.push(`neveljavno ponavljanje '${ponRaw}'`);
+
     const candidate = {
       matterId: "x", // placeholder for validation only
       title: str(r.naziv_roka),
       dueDate: str(r.datum) || undefined,
       severity: num(r.resnost) ?? 2,
       remindDaysBefore: num(r.opomni_dni_prej) ?? 3,
-      kind: resolveKind(r.vrsta) ?? "interni",
-      recurrence: resolveRecurrence(r.ponavljanje) ?? "enkraten",
+      kind: kind ?? "interni",
+      recurrence: recurrence ?? "enkraten",
       status: "odprt",
     };
     const parsed = insertDeadlineSchema.safeParse(candidate);
     if (!parsed.success) {
-      errors.push({ sheet: "roki", row: line, message: parsed.error.issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; ") });
-    } else {
-      deadlines.push({ code, data: parsed.data });
+      rowErrs.push(parsed.error.issues.map((x) => `${x.path.join(".")}: ${x.message}`).join("; "));
     }
+
+    if (rowErrs.length) rowErrs.forEach((m) => errors.push({ sheet: "roki", row: line, message: m }));
+    else if (parsed.success) deadlines.push({ code, data: parsed.data });
   });
 
   const summary = {
