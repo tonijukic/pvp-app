@@ -9,6 +9,7 @@ import { MatterDetail } from "./pages/MatterDetail";
 import { Deadlines } from "./pages/Deadlines";
 import { TimeQuick } from "./pages/TimeQuick";
 import { Team } from "./pages/Team";
+import { Import } from "./pages/Import";
 import { Admin } from "./pages/Admin";
 
 export default function App() {
@@ -33,6 +34,7 @@ export default function App() {
         <Route path="/roki" component={Deadlines} />
         <Route path="/ure" component={TimeQuick} />
         <Route path="/ekipa">{me.role === "admin" ? <Team /> : <NotAllowed />}</Route>
+        <Route path="/uvoz">{me.role === "admin" ? <Import /> : <NotAllowed />}</Route>
         <Route path="/nastavitve">{me.role === "admin" ? <Admin /> : <NotAllowed />}</Route>
         <Route>{() => <div className="text-neutral-500">Stran ne obstaja.</div>}</Route>
       </Switch>

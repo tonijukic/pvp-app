@@ -21,7 +21,7 @@ export function Layout({
   const [loc] = useLocation();
   const nav =
     me.role === "admin"
-      ? [...NAV, { href: "/ekipa", label: "Ekipa" }, { href: "/nastavitve", label: "Nastavitve" }]
+      ? [...NAV, { href: "/ekipa", label: "Ekipa" }, { href: "/uvoz", label: "Uvoz" }, { href: "/nastavitve", label: "Nastavitve" }]
       : NAV;
 
   async function doLogout() {

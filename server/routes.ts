@@ -4,6 +4,7 @@ import { authRouter } from "./routes/auth";
 import { trackerRouter } from "./routes/tracker";
 import { usersRouter } from "./routes/users";
 import { jobsRouter } from "./routes/jobs";
+import { importRouter } from "./routes/import";
 import { requireAuth } from "./middleware/requireAuth";
 
 /**
@@ -15,6 +16,7 @@ export async function registerRoutes(_httpServer: Server, app: Express) {
   app.use("/api", requireAuth, trackerRouter);
   app.use("/api/users", requireAuth, usersRouter);
   app.use("/api/jobs", requireAuth, jobsRouter);
+  app.use("/api/import", requireAuth, importRouter);
 
   app.get("/api/ping", requireAuth, (_req, res) => {
     res.json({ success: true, data: { pong: true }, error: null });

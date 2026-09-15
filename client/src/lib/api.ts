@@ -116,6 +116,19 @@ export const updateUser = (
 ) => req<SafeUser>("PATCH", `/api/users/${id}`, body);
 export const deleteUser = (id: string) => req<{ deleted: boolean }>("DELETE", `/api/users/${id}`);
 
+// --- admin: one-time import (Uvoz) ---
+export interface ImportResult {
+  dryRun: boolean;
+  willCreate: { zadeve: number; roki: number };
+  created: { zadeve: number; roki: number };
+  errors: { sheet: "zadeve" | "roki"; row: number; message: string }[];
+}
+export const runImport = (body: {
+  dryRun: boolean;
+  zadeve: Record<string, string>[];
+  roki: Record<string, string>[];
+}) => req<ImportResult>("POST", "/api/import", body);
+
 // --- admin: jobs ---
 export const runJob = (which: "reminders" | "summary", dry = true, month?: string) =>
   req<Record<string, unknown>>(
