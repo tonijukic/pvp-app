@@ -4,11 +4,14 @@ import { Link } from "wouter";
 import { fetchMatters, createMatter, fetchMe } from "../lib/api";
 import { AREA_LABELS, BILLING_LABELS, STATUS_LABELS, todayIso } from "../lib/format";
 import { PRACTICE_AREAS, BILLING_TYPES, MATTER_STATUSES } from "@shared/schema";
+import { useTeam } from "../lib/team";
+import { Assignee } from "../components/Assignee";
 
 export function Matters() {
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: fetchMe });
   const { data: matters, isLoading } = useQuery({ queryKey: ["matters"], queryFn: fetchMatters });
+  const { nameOf } = useTeam();
   const [open, setOpen] = useState(false);
 
   return (
@@ -34,12 +37,13 @@ export function Matters() {
       ) : (
         <div className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white">
           {matters.map((m) => (
-            <Link key={m.id} href={`/zadeve/${m.id}`} className="flex items-center justify-between px-4 py-3 hover:bg-neutral-50">
-              <div>
+            <Link key={m.id} href={`/zadeve/${m.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50">
+              <div className="min-w-0">
                 <div className="font-medium">{m.client}</div>
-                <div className="text-sm text-neutral-500">{m.title} · {AREA_LABELS[m.area]}</div>
+                <div className="truncate text-sm text-neutral-500">{m.title} · {AREA_LABELS[m.area]}</div>
+                <div className="mt-1"><Assignee name={nameOf(m.assignedTo)} size="xs" /></div>
               </div>
-              <div className="text-right text-sm">
+              <div className="whitespace-nowrap text-right text-sm">
                 <div className="text-neutral-600">{STATUS_LABELS[m.status]}</div>
                 <div className="text-neutral-400">{BILLING_LABELS[m.billingType]}</div>
               </div>
@@ -52,6 +56,7 @@ export function Matters() {
 }
 
 function CreateForm({ onDone }: { onDone: () => void }) {
+  const { members } = useTeam();
   const [f, setF] = useState({
     client: "",
     title: "",
@@ -113,7 +118,12 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         </select>
       </label>
       <label className="text-sm">Odprto<input type="date" className={input} value={f.openedAt} onChange={(e) => set("openedAt", e.target.value)} /></label>
-      <label className="text-sm">Dodeljeno (e-pošta/uporabnik)<input className={input} value={f.assignedTo} onChange={(e) => set("assignedTo", e.target.value)} placeholder="npr. nina" /></label>
+      <label className="text-sm">Nosilec (kdo dela na zadevi)
+        <select className={input} value={f.assignedTo} onChange={(e) => set("assignedTo", e.target.value)}>
+          <option value="">— nedodeljeno —</option>
+          {members.map((mm) => <option key={mm.username} value={mm.username}>{mm.displayName}{mm.role === "admin" ? " (admin)" : ""}</option>)}
+        </select>
+      </label>
       {err && <div className="text-sm text-red-600 sm:col-span-2">{err}</div>}
       <div className="sm:col-span-2">
         <button disabled={mut.isPending} className="rounded-lg bg-[#C9A34A] px-4 py-2 text-sm font-semibold text-[#0D332B]">

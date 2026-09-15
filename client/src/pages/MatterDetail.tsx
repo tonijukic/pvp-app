@@ -3,18 +3,30 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import {
   fetchMatter, fetchTime, addTime, fetchDeadlines, addDeadline, setDeadlineStatus,
-  fetchCosts, addCost,
+  fetchCosts, addCost, updateMatter,
 } from "../lib/api";
 import type { Me } from "../lib/api";
 import { euro, hoursFmt, todayIso, AREA_LABELS, BILLING_LABELS, STATUS_LABELS, SEVERITY_LABELS, DEADLINE_KIND_LABELS, DEADLINE_RECURRENCE_LABELS, daysLeft } from "../lib/format";
 import { DEADLINE_KINDS, DEADLINE_RECURRENCE } from "@shared/schema";
+import { useTeam } from "../lib/team";
+import { Assignee } from "../components/Assignee";
 
 type Tab = "ure" | "roki" | "stroski";
 const input = "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm";
 
-export function MatterDetail({ id, me: _me }: { id: string; me: Me }) {
+export function MatterDetail({ id, me }: { id: string; me: Me }) {
+  const qc = useQueryClient();
   const [tab, setTab] = useState<Tab>("ure");
   const { data: matter, isLoading, error } = useQuery({ queryKey: ["matter", id], queryFn: () => fetchMatter(id) });
+  const { members, nameOf } = useTeam();
+  const reassign = useMutation({
+    mutationFn: (username: string) => updateMatter(id, { assignedTo: username || null }),
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["matter", id] });
+      qc.invalidateQueries({ queryKey: ["matters"] });
+      qc.invalidateQueries({ queryKey: ["overview"] });
+    },
+  });
 
   if (isLoading) return <p className="text-neutral-500">Nalagam…</p>;
   if (error) return <p className="text-red-600">{(error as Error).message}</p>;
@@ -30,6 +42,21 @@ export function MatterDetail({ id, me: _me }: { id: string; me: Me }) {
           {matter.billingType === "po_urah" && matter.hourlyRate ? ` (${euro(Number(matter.hourlyRate))}/h)` : ""}
           {matter.billingType === "pausal" && matter.flatFee ? ` (${euro(Number(matter.flatFee))})` : ""}
           {" · "}{STATUS_LABELS[matter.status]}
+        </div>
+        <div className="mt-2 flex items-center gap-2">
+          <span className="text-sm text-neutral-500">Nosilec:</span>
+          <Assignee name={nameOf(matter.assignedTo)} size="xs" />
+          {me.role === "admin" && (
+            <select
+              className="ml-auto rounded-lg border border-neutral-300 px-2 py-1 text-sm"
+              value={matter.assignedTo ?? ""}
+              onChange={(e) => reassign.mutate(e.target.value)}
+              title="Prerazporedi nosilca"
+            >
+              <option value="">— nedodeljeno —</option>
+              {members.map((mm) => <option key={mm.username} value={mm.username}>{mm.displayName}{mm.role === "admin" ? " (admin)" : ""}</option>)}
+            </select>
+          )}
         </div>
       </div>
 

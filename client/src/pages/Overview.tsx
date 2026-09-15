@@ -2,9 +2,12 @@ import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchOverview } from "../lib/api";
 import { euro, hoursFmt, daysLeft, AREA_LABELS, STATUS_LABELS } from "../lib/format";
+import { useTeam } from "../lib/team";
+import { Assignee } from "../components/Assignee";
 
 export function Overview() {
   const { data, isLoading, error } = useQuery({ queryKey: ["overview"], queryFn: fetchOverview });
+  const { nameOf } = useTeam();
 
   if (isLoading) return <p className="text-neutral-500">Nalagam…</p>;
   if (error) return <p className="text-red-600">{(error as Error).message}</p>;
@@ -29,7 +32,10 @@ export function Overview() {
                 {STATUS_LABELS[o.matter.status]}
               </span>
             </div>
-            <div className="mt-3 flex flex-wrap gap-x-5 gap-y-1 text-sm">
+            <div className="mt-2">
+              <Assignee name={nameOf(o.matter.assignedTo)} size="xs" />
+            </div>
+            <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
               <span className="text-neutral-500">{AREA_LABELS[o.matter.area]}</span>
               <span>{hoursFmt(o.hoursTotal)}</span>
               <span className="font-medium">{euro(o.billableValue)}</span>

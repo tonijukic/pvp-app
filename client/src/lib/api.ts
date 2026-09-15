@@ -55,6 +55,14 @@ export const logout = () => fetch("/api/auth/logout", { method: "POST", credenti
 // --- overview ---
 export const fetchOverview = () => req<MatterOverview[]>("GET", "/api/overview");
 
+// --- team (roster for assignee display + dropdown) ---
+export interface TeamMember {
+  username: string;
+  displayName: string;
+  role: "member" | "admin";
+}
+export const fetchTeam = () => req<TeamMember[]>("GET", "/api/team");
+
 // --- matters ---
 export const fetchMatters = () => req<Matter[]>("GET", "/api/matters");
 export const fetchMatter = (id: string) => req<Matter>("GET", `/api/matters/${id}`);

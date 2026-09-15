@@ -1,6 +1,7 @@
 import { Router, type Request, type Response } from "express";
 import { z } from "zod";
 import { storage } from "../storage";
+import { config } from "../config";
 import { computeOverview } from "../overview";
 import { requireAdmin } from "../middleware/requireRole";
 import {
@@ -31,7 +32,7 @@ function matterFilter(req: Request) {
   return isAdmin(req) ? undefined : { assignedTo: sess(req).username };
 }
 
-function parse<T>(schema: z.ZodType<T>, body: unknown, res: Response): T | null {
+function parse<S extends z.ZodTypeAny>(schema: S, body: unknown, res: Response): z.output<S> | null {
   const r = schema.safeParse(body);
   if (!r.success) {
     fail(res, 400, r.error.issues.map((i) => i.message).join("; "));
@@ -51,6 +52,20 @@ async function loadAccessibleMatter(req: Request, id: string) {
 
 trackerRouter.get("/overview", async (req, res) => {
   ok(res, await computeOverview(storage, matterFilter(req)));
+});
+
+// --- Team (for assignee display + the "Nosilec" dropdown) -------------------
+// Any authenticated user may read the roster (colleagues); includes the
+// env break-glass admin (Nina), who is not a DB row.
+
+trackerRouter.get("/team", async (_req, res) => {
+  const users = await storage.listUsers();
+  ok(res, [
+    { username: config.auth.adminUser, displayName: config.auth.adminName, role: "admin" as const },
+    ...users
+      .filter((u) => u.username !== config.auth.adminUser)
+      .map((u) => ({ username: u.username, displayName: u.displayName ?? u.username, role: u.role })),
+  ]);
 });
 
 // --- Matters ---------------------------------------------------------------

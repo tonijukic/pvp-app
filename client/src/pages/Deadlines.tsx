@@ -1,14 +1,18 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { fetchAllDeadlines, fetchMatters, setDeadlineStatus } from "../lib/api";
 import { daysLeft, SEVERITY_LABELS } from "../lib/format";
+import { useTeam } from "../lib/team";
+import { Assignee } from "../components/Assignee";
 import type { Deadline } from "@shared/schema";
 
 export function Deadlines() {
   const qc = useQueryClient();
   const { data: deadlines, isLoading } = useQuery({ queryKey: ["deadlines"], queryFn: fetchAllDeadlines });
   const { data: matters } = useQuery({ queryKey: ["matters"], queryFn: fetchMatters });
+  const { nameOf } = useTeam();
+  const matterOf = (id: string) => matters?.find((x) => x.id === id);
   const matterLabel = (id: string) => {
-    const m = matters?.find((x) => x.id === id);
+    const m = matterOf(id);
     return m ? `${m.client} — ${m.title}` : "";
   };
 
@@ -27,11 +31,17 @@ export function Deadlines() {
 
   const Row = (d: Deadline) => {
     const dl = daysLeft(d.dueDate);
+    const m = matterOf(d.matterId);
     return (
-      <div key={d.id} className="flex items-center justify-between px-4 py-3">
-        <div>
-          <div className="font-medium">{d.title}</div>
-          <div className="text-sm text-neutral-500">{matterLabel(d.matterId)}</div>
+      <div key={d.id} className="flex items-center justify-between gap-3 px-4 py-3">
+        <div className="min-w-0">
+          <div className="font-medium">
+            {d.title}
+            {d.kind === "obveznost_stranke" && <span className="ml-2 rounded bg-[#C9A34A]/20 px-1.5 py-0.5 text-[11px] text-[#0D332B]">obveznost stranke</span>}
+            {d.recurrence === "letni" && <span className="ml-1 rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] text-neutral-500">letni</span>}
+          </div>
+          <div className="truncate text-sm text-neutral-500">{matterLabel(d.matterId)}</div>
+          <div className="mt-1"><Assignee name={nameOf(m?.assignedTo)} size="xs" /></div>
         </div>
         <div className="flex items-center gap-3 text-right">
           <div className="text-sm">
