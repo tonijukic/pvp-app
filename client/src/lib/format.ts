@@ -13,4 +13,11 @@ export function daysLeft(dueIso: string): number {
   return Math.round((due - now) / 86_400_000);
 }
 
-export { AREA_LABELS, BILLING_LABELS, STATUS_LABELS, SEVERITY_LABELS } from "@shared/labels";
+export {
+  AREA_LABELS,
+  BILLING_LABELS,
+  STATUS_LABELS,
+  SEVERITY_LABELS,
+  DEADLINE_KIND_LABELS,
+  DEADLINE_RECURRENCE_LABELS,
+} from "@shared/labels";

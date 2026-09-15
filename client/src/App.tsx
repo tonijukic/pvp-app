@@ -31,7 +31,7 @@ export default function App() {
         <Route path="/zadeve/:id">{(p) => <MatterDetail id={p.id} me={me} />}</Route>
         <Route path="/roki" component={Deadlines} />
         <Route path="/ure" component={TimeQuick} />
-        <Route path="/admin">{me.role === "admin" ? <Admin /> : <NotAllowed />}</Route>
+        <Route path="/nastavitve">{me.role === "admin" ? <Admin /> : <NotAllowed />}</Route>
         <Route>{() => <div className="text-neutral-500">Stran ne obstaja.</div>}</Route>
       </Switch>
     </Layout>

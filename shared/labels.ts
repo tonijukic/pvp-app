@@ -1,4 +1,10 @@
-import type { PracticeArea, BillingType, MatterStatus } from "./schema";
+import type {
+  PracticeArea,
+  BillingType,
+  MatterStatus,
+  DeadlineKind,
+  DeadlineRecurrence,
+} from "./schema";
 
 export const AREA_LABELS: Record<PracticeArea, string> = {
   delovno_pravo: "Delovno pravo",
@@ -26,4 +32,14 @@ export const SEVERITY_LABELS: Record<number, string> = {
   1: "nizka",
   2: "srednja",
   3: "kritična",
+};
+
+export const DEADLINE_KIND_LABELS: Record<DeadlineKind, string> = {
+  interni: "Interni rok",
+  obveznost_stranke: "Obveznost stranke",
+};
+
+export const DEADLINE_RECURRENCE_LABELS: Record<DeadlineRecurrence, string> = {
+  enkraten: "Enkraten",
+  letni: "Letni",
 };

@@ -6,7 +6,8 @@ import {
   fetchCosts, addCost,
 } from "../lib/api";
 import type { Me } from "../lib/api";
-import { euro, hoursFmt, todayIso, AREA_LABELS, BILLING_LABELS, STATUS_LABELS, SEVERITY_LABELS, daysLeft } from "../lib/format";
+import { euro, hoursFmt, todayIso, AREA_LABELS, BILLING_LABELS, STATUS_LABELS, SEVERITY_LABELS, DEADLINE_KIND_LABELS, DEADLINE_RECURRENCE_LABELS, daysLeft } from "../lib/format";
+import { DEADLINE_KINDS, DEADLINE_RECURRENCE } from "@shared/schema";
 
 type Tab = "ure" | "roki" | "stroski";
 const input = "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm";
@@ -90,10 +91,12 @@ function DeadlineTab({ id }: { id: string }) {
   const [dueDate, setDueDate] = useState(todayIso());
   const [severity, setSeverity] = useState("2");
   const [remind, setRemind] = useState("3");
+  const [kind, setKind] = useState("interni");
+  const [recurrence, setRecurrence] = useState("enkraten");
   const inval = () => { qc.invalidateQueries({ queryKey: ["deadlines", id] }); qc.invalidateQueries({ queryKey: ["deadlines"] }); qc.invalidateQueries({ queryKey: ["overview"] }); };
   const add = useMutation({
-    mutationFn: () => addDeadline(id, { title, dueDate, severity: Number(severity), remindDaysBefore: Number(remind), status: "odprt" }),
-    onSuccess: () => { setTitle(""); inval(); },
+    mutationFn: () => addDeadline(id, { title, dueDate, severity: Number(severity), remindDaysBefore: Number(remind), status: "odprt", kind, recurrence }),
+    onSuccess: () => { setTitle(""); setKind("interni"); setRecurrence("enkraten"); inval(); },
   });
   const done = useMutation({ mutationFn: (did: string) => setDeadlineStatus(did, "opravljen"), onSuccess: inval });
   return (
@@ -105,6 +108,12 @@ function DeadlineTab({ id }: { id: string }) {
           {[1, 2, 3].map((s) => <option key={s} value={s}>{SEVERITY_LABELS[s]}</option>)}
         </select>
         <input type="number" className={input} title="opomni X dni prej" value={remind} onChange={(e) => setRemind(e.target.value)} />
+        <select className={input} title="vrsta roka" value={kind} onChange={(e) => setKind(e.target.value)}>
+          {DEADLINE_KINDS.map((k) => <option key={k} value={k}>{DEADLINE_KIND_LABELS[k]}</option>)}
+        </select>
+        <select className={input} title="ponavljanje" value={recurrence} onChange={(e) => setRecurrence(e.target.value)}>
+          {DEADLINE_RECURRENCE.map((r) => <option key={r} value={r}>{DEADLINE_RECURRENCE_LABELS[r]}</option>)}
+        </select>
         <button className="rounded-lg bg-[#C9A34A] px-3 py-2 text-sm font-semibold text-[#0D332B]">Dodaj</button>
       </form>
       <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
@@ -112,7 +121,11 @@ function DeadlineTab({ id }: { id: string }) {
           const dl = daysLeft(d.dueDate);
           return (
             <div key={d.id} className="flex items-center justify-between border-b border-neutral-100 px-4 py-2 text-sm last:border-0">
-              <span className={d.status === "opravljen" ? "text-neutral-400 line-through" : ""}>{d.dueDate} · {d.title}</span>
+              <span className={d.status === "opravljen" ? "text-neutral-400 line-through" : ""}>
+                {d.dueDate} · {d.title}
+                {d.kind === "obveznost_stranke" && <span className="ml-2 rounded bg-[#C9A34A]/20 px-1.5 py-0.5 text-[11px] text-[#0D332B]">obveznost stranke</span>}
+                {d.recurrence === "letni" && <span className="ml-1 rounded bg-neutral-100 px-1.5 py-0.5 text-[11px] text-neutral-500">letni</span>}
+              </span>
               <span className="flex items-center gap-3">
                 {d.status === "odprt"
                   ? <span className={dl < 0 ? "text-red-600" : dl <= 3 ? "text-amber-700" : "text-neutral-400"}>{dl < 0 ? `zamuda ${-dl}d` : `čez ${dl}d`}</span>

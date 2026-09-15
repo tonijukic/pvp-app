@@ -44,6 +44,14 @@ export type MatterStatus = (typeof MATTER_STATUSES)[number];
 export const DEADLINE_STATUSES = ["odprt", "opravljen"] as const;
 export type DeadlineStatus = (typeof DEADLINE_STATUSES)[number];
 
+/** Deadline kind: internal task deadline vs. a client's statutory obligation. */
+export const DEADLINE_KINDS = ["interni", "obveznost_stranke"] as const;
+export type DeadlineKind = (typeof DEADLINE_KINDS)[number];
+
+/** Recurrence: one-off vs. yearly (e.g. KPK annual report). */
+export const DEADLINE_RECURRENCE = ["enkraten", "letni"] as const;
+export type DeadlineRecurrence = (typeof DEADLINE_RECURRENCE)[number];
+
 // ---------------------------------------------------------------------------
 // Accounts
 // ---------------------------------------------------------------------------
@@ -66,6 +74,17 @@ export const createUserSchema = z.object({
   email: z.string().email().optional(),
   displayName: z.string().max(120).nullable().optional(),
 });
+
+/** Admin edits an existing team member: rename, change e-mail, reassign
+ * rights (role), or reset password. All fields optional (partial update). */
+export const updateUserSchema = z.object({
+  password: z.string().min(6, "Geslo mora imeti vsaj 6 znakov").max(200).optional(),
+  role: z.enum(APP_ROLE_VALUES).optional(),
+  email: z.string().email().nullable().optional(),
+  displayName: z.string().max(120).nullable().optional(),
+});
+export type UpdateUser = z.infer<typeof updateUserSchema>;
+
 export type AppUserRow = typeof appUsers.$inferSelect;
 export type SafeUser = Omit<AppUserRow, "passwordHash">;
 
@@ -142,6 +161,8 @@ export const deadlines = pgTable("deadlines", {
   severity: integer("severity").notNull().default(2),
   remindDaysBefore: integer("remind_days_before").notNull().default(3),
   status: text("status").$type<DeadlineStatus>().notNull().default("odprt"),
+  kind: text("kind").$type<DeadlineKind>().notNull().default("interni"),
+  recurrence: text("recurrence").$type<DeadlineRecurrence>().notNull().default("enkraten"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -152,6 +173,8 @@ export const insertDeadlineSchema = createInsertSchema(deadlines, {
   severity: () => z.coerce.number().int().min(1).max(3),
   remindDaysBefore: () => z.coerce.number().int().min(0).max(60),
   status: () => z.enum(DEADLINE_STATUSES),
+  kind: () => z.enum(DEADLINE_KINDS).default("interni"),
+  recurrence: () => z.enum(DEADLINE_RECURRENCE).default("enkraten"),
 }).omit({ id: true, createdAt: true });
 
 export const updateDeadlineSchema = insertDeadlineSchema.partial();

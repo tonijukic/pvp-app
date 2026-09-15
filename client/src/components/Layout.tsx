@@ -19,7 +19,7 @@ export function Layout({
   children: React.ReactNode;
 }) {
   const [loc] = useLocation();
-  const nav = me.role === "admin" ? [...NAV, { href: "/admin", label: "Admin" }] : NAV;
+  const nav = me.role === "admin" ? [...NAV, { href: "/nastavitve", label: "Nastavitve" }] : NAV;
 
   async function doLogout() {
     await logout();

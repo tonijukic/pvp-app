@@ -139,11 +139,32 @@ trackerRouter.post("/matters/:id/deadlines", async (req, res) => {
   ok(res, await storage.createDeadline(data));
 });
 
+/** Add one calendar year to an ISO date (YYYY-MM-DD), clamping 29 Feb → 28 Feb. */
+function nextYearIso(iso: string): string {
+  const [y, m, d] = iso.split("-").map(Number);
+  const day = m === 2 && d === 29 ? 28 : d;
+  return `${y + 1}-${String(m).padStart(2, "0")}-${String(day).padStart(2, "0")}`;
+}
+
 trackerRouter.patch("/deadlines/:id", async (req, res) => {
   const data = parse(updateDeadlineSchema, req.body, res);
   if (!data) return;
   const row = await storage.updateDeadline(req.params.id, data);
   if (!row) return fail(res, 404, "Rok ne obstaja");
+  // Yearly obligations (e.g. KPK annual report) roll forward automatically:
+  // when one is marked done, seed next year's occurrence so it is never lost.
+  if (data.status === "opravljen" && row.recurrence === "letni") {
+    await storage.createDeadline({
+      matterId: row.matterId,
+      title: row.title,
+      dueDate: new Date(`${nextYearIso(row.dueDate)}T00:00:00Z`),
+      severity: row.severity,
+      remindDaysBefore: row.remindDaysBefore,
+      status: "odprt",
+      kind: row.kind,
+      recurrence: "letni",
+    });
+  }
   ok(res, row);
 });
 

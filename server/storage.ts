@@ -250,6 +250,8 @@ export class MemStorage implements IStorage {
       severity: d.severity,
       remindDaysBefore: d.remindDaysBefore,
       status: d.status,
+      kind: d.kind,
+      recurrence: d.recurrence,
       createdAt: new Date(),
     };
     this.deadlines.set(row.id, row);
@@ -267,6 +269,8 @@ export class MemStorage implements IStorage {
         ? { remindDaysBefore: patch.remindDaysBefore }
         : {}),
       ...("status" in patch && patch.status !== undefined ? { status: patch.status } : {}),
+      ...("kind" in patch && patch.kind !== undefined ? { kind: patch.kind } : {}),
+      ...("recurrence" in patch && patch.recurrence !== undefined ? { recurrence: patch.recurrence } : {}),
     };
     this.deadlines.set(id, next);
     return next;
@@ -307,6 +311,9 @@ export class MemStorage implements IStorage {
 export class DbStorage implements IStorage {
   constructor(private db: ReturnType<typeof getDb>) {}
 
+  // Drizzle's chained select builder type is awkward to name here; it is both
+  // awaitable and `.where()`-able. Keep it untyped at this single seam.
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private async rows<T>(base: any, conds: SQL[]): Promise<T[]> {
     return conds.length ? base.where(and(...conds)) : base;
   }
@@ -454,6 +461,8 @@ export class DbStorage implements IStorage {
         severity: d.severity,
         remindDaysBefore: d.remindDaysBefore,
         status: d.status,
+        kind: d.kind,
+        recurrence: d.recurrence,
       })
       .returning();
     return row;
@@ -465,6 +474,8 @@ export class DbStorage implements IStorage {
     if (patch.severity !== undefined) set.severity = patch.severity;
     if (patch.remindDaysBefore !== undefined) set.remindDaysBefore = patch.remindDaysBefore;
     if (patch.status !== undefined) set.status = patch.status;
+    if (patch.kind !== undefined) set.kind = patch.kind;
+    if (patch.recurrence !== undefined) set.recurrence = patch.recurrence;
     const [row] = await this.db.update(deadlines).set(set).where(eq(deadlines.id, id)).returning();
     return row;
   }

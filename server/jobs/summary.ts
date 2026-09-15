@@ -18,6 +18,16 @@ export async function runSummary(opts: { month?: string; dryRun?: boolean } = {}
   const from = `${month}-01`;
   const to = `${month}-31`;
 
+  // Resolve a time entry's userId (= username) to a human name for the
+  // per-collaborator breakdown Nina asked for (each person's hours must be
+  // visible so she can pay them; her own review time shows as her own line).
+  const users = await storage.listUsers();
+  const nameOf = (userId: string | null): string => {
+    if (!userId) return "Nerazporejeno";
+    return users.find((u) => u.username === userId)?.displayName ?? userId;
+  };
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+
   const matters = await storage.listMatters();
   const rows: SummaryRow[] = [];
   for (const matter of matters) {
@@ -29,15 +39,26 @@ export async function runSummary(opts: { month?: string; dryRun?: boolean } = {}
     const costsTotal = costs.reduce((s, c) => s + Number(c.amount), 0);
     if (hours === 0 && costsTotal === 0 && matter.billingType !== "pausal") continue;
 
+    // Hours broken down per collaborator.
+    const perUser = new Map<string, number>();
+    for (const t of time) {
+      const name = nameOf(t.userId);
+      perUser.set(name, (perUser.get(name) ?? 0) + Number(t.hours));
+    }
+    const byUser = [...perUser.entries()]
+      .map(([name, h]) => ({ name, hours: round2(h) }))
+      .sort((a, b) => b.hours - a.hours);
+
     let billable: number | null = null;
     if (matter.billingType === "pausal") billable = matter.flatFee !== null ? Number(matter.flatFee) : null;
     else if (matter.hourlyRate !== null) billable = hours * Number(matter.hourlyRate);
 
     rows.push({
       matter,
-      hours: Math.round(hours * 100) / 100,
-      billable: billable === null ? null : Math.round(billable * 100) / 100,
-      costs: Math.round(costsTotal * 100) / 100,
+      hours: round2(hours),
+      byUser,
+      billable: billable === null ? null : round2(billable),
+      costs: round2(costsTotal),
     });
   }
 

@@ -46,9 +46,10 @@ app.use(
   await runMigrations(); // no-op without DATABASE_URL
   await seedDev(storage); // no-op unless PVP_SEED=true
 
-  app.use((err: any, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
-    log(`error: ${err?.message ?? err}`);
-    res.status(err?.status ?? 500).json({ success: false, data: null, error: "Napaka strežnika" });
+  app.use((err: unknown, _req: express.Request, res: express.Response, _next: express.NextFunction) => {
+    const e = err as { message?: string; status?: number } | undefined;
+    log(`error: ${e?.message ?? String(err)}`);
+    res.status(e?.status ?? 500).json({ success: false, data: null, error: "Napaka strežnika" });
   });
 
   if (config.nodeEnv === "production") {

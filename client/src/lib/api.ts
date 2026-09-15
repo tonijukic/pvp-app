@@ -75,7 +75,15 @@ export const fetchDeadlines = (matterId: string) =>
   req<Deadline[]>("GET", `/api/matters/${matterId}/deadlines`);
 export const addDeadline = (
   matterId: string,
-  body: { title: string; dueDate: string; severity: number; remindDaysBefore: number; status: string },
+  body: {
+    title: string;
+    dueDate: string;
+    severity: number;
+    remindDaysBefore: number;
+    status: string;
+    kind?: string;
+    recurrence?: string;
+  },
 ) => req<Deadline>("POST", `/api/matters/${matterId}/deadlines`, body);
 export const setDeadlineStatus = (id: string, status: "odprt" | "opravljen") =>
   req<Deadline>("PATCH", `/api/deadlines/${id}`, { status });
@@ -94,6 +102,10 @@ export const createUser = (body: {
   email?: string;
   displayName?: string;
 }) => req<SafeUser>("POST", "/api/users", body);
+export const updateUser = (
+  id: string,
+  body: { displayName?: string | null; email?: string | null; role?: string; password?: string },
+) => req<SafeUser>("PATCH", `/api/users/${id}`, body);
 export const deleteUser = (id: string) => req<{ deleted: boolean }>("DELETE", `/api/users/${id}`);
 
 // --- admin: jobs ---
