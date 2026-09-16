@@ -15,8 +15,10 @@ function prevMonth(): string {
  */
 export async function runSummary(opts: { month?: string; dryRun?: boolean } = {}) {
   const month = opts.month ?? prevMonth();
+  const [my, mm] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(my, mm, 0)).getUTCDate(); // valid last day (30/31/28/29)
   const from = `${month}-01`;
-  const to = `${month}-31`;
+  const to = `${month}-${String(lastDay).padStart(2, "0")}`;
 
   // Resolve a time entry's userId (= username) to a human name for the
   // per-collaborator breakdown Nina asked for (each person's hours must be

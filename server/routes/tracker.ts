@@ -76,8 +76,10 @@ trackerRouter.get("/team-billing", requireAdmin, async (req, res) => {
     typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month)
       ? req.query.month
       : new Date().toISOString().slice(0, 7);
+  const [my, mm] = month.split("-").map(Number);
+  const lastDay = new Date(Date.UTC(my, mm, 0)).getUTCDate(); // valid last day (30/31/28/29)
   const from = `${month}-01`;
-  const to = `${month}-31`;
+  const to = `${month}-${String(lastDay).padStart(2, "0")}`;
 
   const users = await storage.listUsers();
   const meta = new Map(users.map((u) => [u.username, { name: u.displayName ?? u.username, payRate: u.payRate }]));
