@@ -6,6 +6,9 @@ import type {
   TimeEntry,
   Deadline,
   Cost,
+  Client,
+  InsertClient,
+  UpdateClient,
 } from "@shared/schema";
 
 export interface Me {
@@ -54,6 +57,14 @@ export const logout = () => fetch("/api/auth/logout", { method: "POST", credenti
 
 // --- overview ---
 export const fetchOverview = () => req<MatterOverview[]>("GET", "/api/overview");
+
+// --- clients (Stranke / CRM) ---
+export const fetchClients = (status?: "aktivna" | "potencialna") =>
+  req<Client[]>("GET", `/api/clients${status ? `?status=${status}` : ""}`);
+export const createClient = (body: Partial<InsertClient>) => req<Client>("POST", "/api/clients", body);
+export const updateClient = (id: string, body: UpdateClient) =>
+  req<Client>("PATCH", `/api/clients/${id}`, body);
+export const deleteClient = (id: string) => req<{ deleted: boolean }>("DELETE", `/api/clients/${id}`);
 
 // --- team (roster for assignee display + dropdown) ---
 export interface TeamMember {

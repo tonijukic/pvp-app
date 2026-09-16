@@ -4,6 +4,9 @@ import type {
   MatterStatus,
   DeadlineKind,
   DeadlineRecurrence,
+  ClientKind,
+  ClientStatus,
+  ContractType,
 } from "./schema";
 
 export const AREA_LABELS: Record<PracticeArea, string> = {
@@ -24,8 +27,24 @@ export const BILLING_LABELS: Record<BillingType, string> = {
 export const STATUS_LABELS: Record<MatterStatus, string> = {
   odprta: "Odprta",
   v_teku: "V teku",
-  caka: "Čaka",
+  caka: "Čaka (stranko/odgovor)",
   zakljucena: "Zaključena",
+};
+
+export const CLIENT_KIND_LABELS: Record<ClientKind, string> = {
+  pravna: "Pravna oseba",
+  fizicna: "Fizična oseba",
+};
+
+export const CLIENT_STATUS_LABELS: Record<ClientStatus, string> = {
+  aktivna: "Aktivna",
+  potencialna: "Potencialna",
+};
+
+export const CONTRACT_TYPE_LABELS: Record<ContractType, string> = {
+  pogodba: "Pogodba",
+  narocilnica: "Naročilnica",
+  brez: "Brez",
 };
 
 export const SEVERITY_LABELS: Record<number, string> = {

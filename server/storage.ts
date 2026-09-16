@@ -6,6 +6,7 @@ import {
   timeEntries,
   deadlines,
   costs,
+  clients,
   type AppUserRow,
   type AppRole,
   type Matter,
@@ -18,6 +19,10 @@ import {
   type UpdateDeadline,
   type Cost,
   type InsertCost,
+  type Client,
+  type InsertClient,
+  type UpdateClient,
+  type ClientStatus,
 } from "@shared/schema";
 import { config } from "./config";
 import { getDb } from "./db";
@@ -65,6 +70,9 @@ export interface CostFilter {
 export interface MatterFilter {
   assignedTo?: string; // username — members see only their own
 }
+export interface ClientFilter {
+  status?: ClientStatus;
+}
 
 export interface IStorage {
   // Users
@@ -98,6 +106,14 @@ export interface IStorage {
   listCosts(f?: CostFilter): Promise<Cost[]>;
   createCost(c: InsertCost): Promise<Cost>;
   deleteCost(id: string): Promise<boolean>;
+
+  // Clients (CRM)
+  listClients(f?: ClientFilter): Promise<Client[]>;
+  getClient(id: string): Promise<Client | undefined>;
+  getClientByCode(code: string): Promise<Client | undefined>;
+  createClient(c: InsertClient): Promise<Client>;
+  updateClient(id: string, patch: UpdateClient): Promise<Client | undefined>;
+  deleteClient(id: string): Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------
@@ -110,6 +126,7 @@ export class MemStorage implements IStorage {
   private time = new Map<string, TimeEntry>();
   private deadlines = new Map<string, Deadline>();
   private costs = new Map<string, Cost>();
+  private clients = new Map<string, Client>();
 
   // --- Users ---
   async getUserById(id: string) {
@@ -165,6 +182,7 @@ export class MemStorage implements IStorage {
     const row: Matter = {
       id: randomUUID(),
       client: m.client,
+      clientId: m.clientId ?? null,
       title: m.title,
       area: m.area,
       billingType: m.billingType,
@@ -186,6 +204,7 @@ export class MemStorage implements IStorage {
     const next: Matter = {
       ...cur,
       ...("client" in patch && patch.client !== undefined ? { client: patch.client } : {}),
+      ...("clientId" in patch ? { clientId: patch.clientId ?? null } : {}),
       ...("title" in patch && patch.title !== undefined ? { title: patch.title } : {}),
       ...("area" in patch && patch.area !== undefined ? { area: patch.area } : {}),
       ...("billingType" in patch && patch.billingType !== undefined ? { billingType: patch.billingType } : {}),
@@ -302,6 +321,65 @@ export class MemStorage implements IStorage {
   async deleteCost(id: string) {
     return this.costs.delete(id);
   }
+
+  // --- Clients ---
+  async listClients(f?: ClientFilter) {
+    let rows = [...this.clients.values()];
+    if (f?.status) rows = rows.filter((c) => c.status === f.status);
+    return rows.sort((a, b) => a.name.localeCompare(b.name, "sl"));
+  }
+  async getClient(id: string) {
+    return this.clients.get(id);
+  }
+  async getClientByCode(code: string) {
+    const lc = code.toLowerCase();
+    return [...this.clients.values()].find((c) => c.code.toLowerCase() === lc);
+  }
+  async createClient(c: InsertClient) {
+    const now = new Date();
+    const row: Client = {
+      id: randomUUID(),
+      code: c.code,
+      name: c.name,
+      kind: c.kind,
+      status: c.status,
+      area: c.area ?? null,
+      contractType: c.contractType,
+      documentNumber: c.documentNumber ?? null,
+      validFrom: dateStr(c.validFrom),
+      validTo: dateStr(c.validTo),
+      subject: c.subject ?? null,
+      notes: c.notes ?? null,
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.clients.set(row.id, row);
+    return row;
+  }
+  async updateClient(id: string, patch: UpdateClient) {
+    const cur = this.clients.get(id);
+    if (!cur) return undefined;
+    const next: Client = {
+      ...cur,
+      ...("code" in patch && patch.code !== undefined ? { code: patch.code } : {}),
+      ...("name" in patch && patch.name !== undefined ? { name: patch.name } : {}),
+      ...("kind" in patch && patch.kind !== undefined ? { kind: patch.kind } : {}),
+      ...("status" in patch && patch.status !== undefined ? { status: patch.status } : {}),
+      ...("area" in patch ? { area: patch.area ?? null } : {}),
+      ...("contractType" in patch && patch.contractType !== undefined ? { contractType: patch.contractType } : {}),
+      ...("documentNumber" in patch ? { documentNumber: patch.documentNumber ?? null } : {}),
+      ...("validFrom" in patch ? { validFrom: dateStr(patch.validFrom) } : {}),
+      ...("validTo" in patch ? { validTo: dateStr(patch.validTo) } : {}),
+      ...("subject" in patch ? { subject: patch.subject ?? null } : {}),
+      ...("notes" in patch ? { notes: patch.notes ?? null } : {}),
+      updatedAt: new Date(),
+    };
+    this.clients.set(id, next);
+    return next;
+  }
+  async deleteClient(id: string) {
+    return this.clients.delete(id);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -379,6 +457,7 @@ export class DbStorage implements IStorage {
       .insert(matters)
       .values({
         client: m.client,
+        clientId: m.clientId ?? null,
         title: m.title,
         area: m.area,
         billingType: m.billingType,
@@ -395,6 +474,7 @@ export class DbStorage implements IStorage {
   async updateMatter(id: string, patch: UpdateMatter) {
     const set: Record<string, unknown> = { updatedAt: new Date() };
     if (patch.client !== undefined) set.client = patch.client;
+    if ("clientId" in patch) set.clientId = patch.clientId ?? null;
     if (patch.title !== undefined) set.title = patch.title;
     if (patch.area !== undefined) set.area = patch.area;
     if (patch.billingType !== undefined) set.billingType = patch.billingType;
@@ -507,6 +587,64 @@ export class DbStorage implements IStorage {
   }
   async deleteCost(id: string) {
     const res = await this.db.delete(costs).where(eq(costs.id, id)).returning();
+    return res.length > 0;
+  }
+
+  // --- Clients ---
+  async listClients(f?: ClientFilter) {
+    const conds: SQL[] = [];
+    if (f?.status) conds.push(eq(clients.status, f.status));
+    const base = this.db.select().from(clients).orderBy(clients.name);
+    return this.rows<Client>(base, conds);
+  }
+  async getClient(id: string) {
+    const [row] = await this.db.select().from(clients).where(eq(clients.id, id));
+    return row;
+  }
+  async getClientByCode(code: string) {
+    const [row] = await this.db
+      .select()
+      .from(clients)
+      .where(sql`lower(${clients.code}) = lower(${code})`);
+    return row;
+  }
+  async createClient(c: InsertClient) {
+    const [row] = await this.db
+      .insert(clients)
+      .values({
+        code: c.code,
+        name: c.name,
+        kind: c.kind,
+        status: c.status,
+        area: c.area ?? null,
+        contractType: c.contractType,
+        documentNumber: c.documentNumber ?? null,
+        validFrom: dateStr(c.validFrom),
+        validTo: dateStr(c.validTo),
+        subject: c.subject ?? null,
+        notes: c.notes ?? null,
+      })
+      .returning();
+    return row;
+  }
+  async updateClient(id: string, patch: UpdateClient) {
+    const set: Record<string, unknown> = { updatedAt: new Date() };
+    if (patch.code !== undefined) set.code = patch.code;
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.kind !== undefined) set.kind = patch.kind;
+    if (patch.status !== undefined) set.status = patch.status;
+    if ("area" in patch) set.area = patch.area ?? null;
+    if (patch.contractType !== undefined) set.contractType = patch.contractType;
+    if ("documentNumber" in patch) set.documentNumber = patch.documentNumber ?? null;
+    if ("validFrom" in patch) set.validFrom = dateStr(patch.validFrom);
+    if ("validTo" in patch) set.validTo = dateStr(patch.validTo);
+    if ("subject" in patch) set.subject = patch.subject ?? null;
+    if ("notes" in patch) set.notes = patch.notes ?? null;
+    const [row] = await this.db.update(clients).set(set).where(eq(clients.id, id)).returning();
+    return row;
+  }
+  async deleteClient(id: string) {
+    const res = await this.db.delete(clients).where(eq(clients.id, id)).returning();
     return res.length > 0;
   }
 }

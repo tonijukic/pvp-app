@@ -31,7 +31,8 @@ export function Team() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-[#0D332B]">Ekipa</h1>
+      <h1 className="mb-1 text-xl font-semibold text-[#0D332B]">Ekipa</h1>
+      <p className="mb-4 text-sm text-neutral-500">Pregled dela po osebah - kdo dela na čem, koliko ur in odprti/zamujeni roki.</p>
       <div className="grid gap-3">
         {ordered.map((key) => {
           const items = groups.get(key) ?? [];
@@ -44,7 +45,7 @@ export function Team() {
               <div className="flex items-center justify-between">
                 <Assignee name={name} />
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm text-neutral-500">
-                  <span>{items.length} zadev</span>
+                  <span>{items.length} nalog</span>
                   <span>{hoursFmt(hours)}</span>
                   <span>{openDl} odprtih rokov</span>
                   {overdue > 0 && <span className="font-medium text-red-600">{overdue} zamujenih</span>}

@@ -34,7 +34,7 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
 
   return (
     <div>
-      <Link href="/zadeve" className="text-sm text-neutral-500">← Zadeve</Link>
+      <Link href="/zadeve" className="text-sm text-neutral-500">← Naloge</Link>
       <div className="mt-1 mb-4">
         <h1 className="text-xl font-semibold text-[#0D332B]">{matter.client}</h1>
         <div className="text-sm text-neutral-500">

@@ -3,8 +3,8 @@ import type { Me } from "../lib/api";
 import { logout } from "../lib/api";
 
 const NAV = [
-  { href: "/", label: "Pregled" },
-  { href: "/zadeve", label: "Zadeve" },
+  { href: "/", label: "Nadzorna plošča" },
+  { href: "/zadeve", label: "Naloge" },
   { href: "/roki", label: "Roki" },
   { href: "/ure", label: "Ure" },
 ];
@@ -21,7 +21,7 @@ export function Layout({
   const [loc] = useLocation();
   const nav =
     me.role === "admin"
-      ? [...NAV, { href: "/ekipa", label: "Ekipa" }, { href: "/uvoz", label: "Uvoz" }, { href: "/nastavitve", label: "Nastavitve" }]
+      ? [...NAV, { href: "/stranke", label: "Stranke" }, { href: "/ekipa", label: "Ekipa" }, { href: "/uvoz", label: "Uvoz" }, { href: "/nastavitve", label: "Nastavitve" }]
       : NAV;
 
   async function doLogout() {

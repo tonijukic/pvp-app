@@ -15,7 +15,7 @@ export function Overview() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-[#0D332B]">Pregled po zadevah</h1>
+      <h1 className="mb-4 text-xl font-semibold text-[#0D332B]">Nadzorna plošča</h1>
       <div className="grid gap-3 sm:grid-cols-2">
         {data.map((o) => (
           <Link
@@ -67,9 +67,9 @@ function NextBadge({ dueDate }: { dueDate: string }) {
 function Empty() {
   return (
     <div className="rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center text-neutral-500">
-      Ni zadev.{" "}
+      Ni nalog.{" "}
       <Link href="/zadeve" className="text-[#0D332B] underline">
-        Dodaj prvo zadevo
+        Dodaj prvo nalogo
       </Link>
       .
     </div>

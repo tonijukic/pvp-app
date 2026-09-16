@@ -94,7 +94,8 @@ export type SafeUser = Omit<AppUserRow, "passwordHash">;
 
 export const matters = pgTable("matters", {
   id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
-  client: text("client").notNull(),
+  client: text("client").notNull(), // denormaliziran naziv stranke (za prikaz)
+  clientId: varchar("client_id"), // vez na stranko (CRM), ko je izbrana iz baze
   title: text("title").notNull(),
   area: text("area").$type<PracticeArea>().notNull().default("drugo"),
   billingType: text("billing_type").$type<BillingType>().notNull().default("po_urah"),
@@ -110,7 +111,8 @@ export const matters = pgTable("matters", {
 
 export const insertMatterSchema = createInsertSchema(matters, {
   client: (s) => s.min(1, "Stranka je obvezna").max(200),
-  title: (s) => s.min(1, "Naziv zadeve je obvezen").max(300),
+  clientId: (s) => s.optional(),
+  title: (s) => s.min(1, "Opis naloge je obvezen").max(300),
   area: () => z.enum(PRACTICE_AREAS),
   billingType: () => z.enum(BILLING_TYPES),
   status: () => z.enum(MATTER_STATUSES),
@@ -205,3 +207,56 @@ export const insertCostSchema = createInsertSchema(costs, {
 
 export type Cost = typeof costs.$inferSelect;
 export type InsertCost = z.infer<typeof insertCostSchema>;
+
+// ---------------------------------------------------------------------------
+// Clients (Stranke / CRM)
+// ---------------------------------------------------------------------------
+
+/** Legal entity (PO) vs natural person (FO) — drives cenik pricing later. */
+export const CLIENT_KINDS = ["pravna", "fizicna"] as const;
+export type ClientKind = (typeof CLIENT_KINDS)[number];
+
+/** Active client vs potential (lead). */
+export const CLIENT_STATUSES = ["aktivna", "potencialna"] as const;
+export type ClientStatus = (typeof CLIENT_STATUSES)[number];
+
+/** Engagement basis. */
+export const CONTRACT_TYPES = ["pogodba", "narocilnica", "brez"] as const;
+export type ContractType = (typeof CONTRACT_TYPES)[number];
+
+export const clients = pgTable("clients", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(), // kratica, ki jo določi Nina
+  name: text("name").notNull(),
+  kind: text("kind").$type<ClientKind>().notNull().default("pravna"),
+  status: text("status").$type<ClientStatus>().notNull().default("aktivna"),
+  area: text("area").$type<PracticeArea>(), // pretežno področje
+  contractType: text("contract_type").$type<ContractType>().notNull().default("brez"),
+  documentNumber: text("document_number"), // št. pogodbe/naročilnice
+  validFrom: date("valid_from"),
+  validTo: date("valid_to"),
+  subject: text("subject"), // opis predmeta (cene/specifike)
+  notes: text("notes"), // opombe: želje / nujne potrebe
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertClientSchema = createInsertSchema(clients, {
+  code: (s) => s.min(1, "Kratica je obvezna").max(40),
+  name: (s) => s.min(1, "Naziv je obvezen").max(300),
+  kind: () => z.enum(CLIENT_KINDS).default("pravna"),
+  status: () => z.enum(CLIENT_STATUSES).default("aktivna"),
+  area: () => z.enum(PRACTICE_AREAS).optional(),
+  contractType: () => z.enum(CONTRACT_TYPES).default("brez"),
+  documentNumber: (s) => s.max(120).optional(),
+  validFrom: () => z.coerce.date().optional(),
+  validTo: () => z.coerce.date().optional(),
+  subject: (s) => s.max(2000).optional(),
+  notes: (s) => s.max(2000).optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const updateClientSchema = insertClientSchema.partial();
+
+export type Client = typeof clients.$inferSelect;
+export type InsertClient = z.infer<typeof insertClientSchema>;
+export type UpdateClient = z.infer<typeof updateClientSchema>;

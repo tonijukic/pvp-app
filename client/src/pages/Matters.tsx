@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { fetchMatters, createMatter, fetchMe } from "../lib/api";
+import { fetchMatters, createMatter, fetchMe, fetchClients } from "../lib/api";
 import { AREA_LABELS, BILLING_LABELS, STATUS_LABELS, todayIso } from "../lib/format";
 import { PRACTICE_AREAS, BILLING_TYPES, MATTER_STATUSES } from "@shared/schema";
 import { useTeam } from "../lib/team";
@@ -17,13 +17,13 @@ export function Matters() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-[#0D332B]">Zadeve</h1>
+        <h1 className="text-xl font-semibold text-[#0D332B]">Naloge</h1>
         {me?.role === "admin" && (
           <button
             onClick={() => setOpen((v) => !v)}
             className="rounded-lg bg-[#0D332B] px-3 py-1.5 text-sm font-medium text-white"
           >
-            {open ? "Prekliči" : "+ Nova zadeva"}
+            {open ? "Prekliči" : "+ Nova naloga"}
           </button>
         )}
       </div>
@@ -33,7 +33,7 @@ export function Matters() {
       {isLoading ? (
         <p className="text-neutral-500">Nalagam…</p>
       ) : !matters?.length ? (
-        <p className="text-neutral-500">Ni zadev.</p>
+        <p className="text-neutral-500">Ni nalog.</p>
       ) : (
         <div className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white">
           {matters.map((m) => (
@@ -57,8 +57,9 @@ export function Matters() {
 
 function CreateForm({ onDone }: { onDone: () => void }) {
   const { members } = useTeam();
+  const { data: clients } = useQuery({ queryKey: ["clients"], queryFn: () => fetchClients() });
   const [f, setF] = useState({
-    client: "",
+    clientId: "",
     title: "",
     area: "delovno_pravo",
     billingType: "po_urah",
@@ -72,9 +73,11 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
 
   const mut = useMutation({
-    mutationFn: () =>
-      createMatter({
-        client: f.client,
+    mutationFn: () => {
+      const c = clients?.find((x) => x.id === f.clientId);
+      return createMatter({
+        client: c?.name ?? "",
+        clientId: f.clientId || undefined,
         title: f.title,
         area: f.area as never,
         billingType: f.billingType as never,
@@ -83,7 +86,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         hourlyRate: f.billingType === "po_urah" && f.hourlyRate ? Number(f.hourlyRate) : undefined,
         flatFee: f.billingType === "pausal" && f.flatFee ? Number(f.flatFee) : undefined,
         assignedTo: f.assignedTo || undefined,
-      }),
+      });
+    },
     onSuccess: onDone,
     onError: (e) => setErr((e as Error).message),
   });
@@ -92,11 +96,17 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 
   return (
     <form
-      onSubmit={(e) => { e.preventDefault(); setErr(null); mut.mutate(); }}
+      onSubmit={(e) => { e.preventDefault(); setErr(null); if (f.clientId && f.title) mut.mutate(); }}
       className="mb-4 grid gap-3 rounded-xl border border-neutral-200 bg-white p-4 sm:grid-cols-2"
     >
-      <label className="text-sm">Stranka<input className={input} value={f.client} onChange={(e) => set("client", e.target.value)} /></label>
-      <label className="text-sm">Naziv zadeve<input className={input} value={f.title} onChange={(e) => set("title", e.target.value)} /></label>
+      <label className="text-sm">Stranka
+        <select className={input} value={f.clientId} onChange={(e) => set("clientId", e.target.value)}>
+          <option value="">— izberi stranko —</option>
+          {(clients ?? []).map((c) => <option key={c.id} value={c.id}>{c.code} - {c.name}</option>)}
+        </select>
+        {!clients?.length && <span className="mt-1 block text-xs text-amber-700">Najprej dodaj stranke v zavihku „Stranke“.</span>}
+      </label>
+      <label className="text-sm">Opis naloge<input className={input} value={f.title} onChange={(e) => set("title", e.target.value)} /></label>
       <label className="text-sm">Področje
         <select className={input} value={f.area} onChange={(e) => set("area", e.target.value)}>
           {PRACTICE_AREAS.map((a) => <option key={a} value={a}>{AREA_LABELS[a]}</option>)}
@@ -127,7 +137,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       {err && <div className="text-sm text-red-600 sm:col-span-2">{err}</div>}
       <div className="sm:col-span-2">
         <button disabled={mut.isPending} className="rounded-lg bg-[#C9A34A] px-4 py-2 text-sm font-semibold text-[#0D332B]">
-          {mut.isPending ? "Shranjujem…" : "Shrani zadevo"}
+          {mut.isPending ? "Shranjujem…" : "Shrani nalogo"}
         </button>
       </div>
     </form>
