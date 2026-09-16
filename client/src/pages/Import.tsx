@@ -2,12 +2,17 @@ import { useState } from "react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { runImport, type ImportResult } from "../lib/api";
 
+const STRANKE_COLS = ["koda", "naziv", "vrsta", "status", "podrocje", "podlaga", "st_dokumenta", "velja_od", "velja_do", "opis_predmeta", "opombe"];
 const ZADEVE_COLS = ["koda", "stranka", "naziv_zadeve", "podrocje", "obracun", "urna_postavka", "pavsal", "status", "odprto", "nosilec", "opombe"];
 const ROKI_COLS = ["koda_zadeve", "naziv_roka", "datum", "resnost", "opomni_dni_prej", "vrsta", "ponavljanje"];
 
+const STRANKE_EXAMPLE = [
+  "TELO,Telovarna d.o.o.,pravna,aktivna,gdpr,pogodba,POG-2026-01,2026-01-01,2026-12-31,Letni GDPR paket,Nujno pred inšpekcijo",
+  "ABC,Podjetje ABC,pravna,potencialna,delovno_pravo,brez,,,,Povpraševanje po odpovedi,",
+];
 const ZADEVE_EXAMPLE = [
-  "Z001,Telovarna d.o.o.,GDPR uskladitev,gdpr,pausal,,1200,v_teku,2026-08-15,nina,Letna revizija",
-  "Z002,Podjetje ABC,Redna odpoved pogodbe,delovno_pravo,po_urah,120,,odprta,2026-09-05,ana@pravovpraksi.si,",
+  "Z001,TELO,GDPR uskladitev,gdpr,pausal,,1200,v_teku,2026-08-15,nina,Letna revizija",
+  "Z002,ABC,Redna odpoved pogodbe,delovno_pravo,po_urah,120,,odprta,2026-09-05,ana@pravovpraksi.si,",
 ];
 const ROKI_EXAMPLE = [
   "Z002,Rok za pripombe delavca,2026-09-20,3,3,interni,enkraten",
@@ -52,13 +57,15 @@ function download(name: string, cols: string[], examples: string[]) {
 
 export function Import() {
   const qc = useQueryClient();
+  const [strankeCsv, setStrankeCsv] = useState("");
   const [zadeveCsv, setZadeveCsv] = useState("");
   const [rokiCsv, setRokiCsv] = useState("");
   const [result, setResult] = useState<ImportResult | null>(null);
   const [committed, setCommitted] = useState(false);
 
   const run = useMutation({
-    mutationFn: (dryRun: boolean) => runImport({ dryRun, zadeve: parseCsv(zadeveCsv), roki: parseCsv(rokiCsv) }),
+    mutationFn: (dryRun: boolean) =>
+      runImport({ dryRun, stranke: parseCsv(strankeCsv), zadeve: parseCsv(zadeveCsv), roki: parseCsv(rokiCsv) }),
     onSuccess: (data, dryRun) => {
       setResult(data);
       if (!dryRun && !data.errors.length) {
@@ -66,6 +73,7 @@ export function Import() {
         qc.invalidateQueries({ queryKey: ["overview"] });
         qc.invalidateQueries({ queryKey: ["matters"] });
         qc.invalidateQueries({ queryKey: ["deadlines"] });
+        qc.invalidateQueries({ queryKey: ["clients"] });
       }
     },
   });
@@ -87,20 +95,26 @@ export function Import() {
 
       <section className="grid gap-3">
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[#0D332B]">1. Zadeve</h2>
-          <button onClick={() => download("zadeve-predloga.csv", ZADEVE_COLS, ZADEVE_EXAMPLE)} className="text-sm text-[#0D332B] underline">Prenesi predlogo CSV</button>
+          <h2 className="text-lg font-semibold text-[#0D332B]">1. Stranke</h2>
+          <button onClick={() => download("stranke-predloga.csv", STRANKE_COLS, STRANKE_EXAMPLE)} className="text-sm text-[#0D332B] underline">Prenesi predlogo CSV</button>
+        </div>
+        <textarea className={input} rows={6} value={strankeCsv} onChange={(e) => { setStrankeCsv(e.target.value); reset(); }} placeholder={STRANKE_COLS.join(",")} />
+
+        <div className="flex items-center justify-between">
+          <h2 className="text-lg font-semibold text-[#0D332B]">2. Naloge</h2>
+          <button onClick={() => download("naloge-predloga.csv", ZADEVE_COLS, ZADEVE_EXAMPLE)} className="text-sm text-[#0D332B] underline">Prenesi predlogo CSV</button>
         </div>
         <textarea className={input} rows={6} value={zadeveCsv} onChange={(e) => { setZadeveCsv(e.target.value); reset(); }} placeholder={ZADEVE_COLS.join(",")} />
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[#0D332B]">2. Roki (neobvezno)</h2>
+          <h2 className="text-lg font-semibold text-[#0D332B]">3. Roki (neobvezno)</h2>
           <button onClick={() => download("roki-predloga.csv", ROKI_COLS, ROKI_EXAMPLE)} className="text-sm text-[#0D332B] underline">Prenesi predlogo CSV</button>
         </div>
         <textarea className={input} rows={5} value={rokiCsv} onChange={(e) => { setRokiCsv(e.target.value); reset(); }} placeholder={ROKI_COLS.join(",")} />
       </section>
 
       <div className="flex items-center gap-3">
-        <button onClick={() => { setCommitted(false); run.mutate(true); }} disabled={run.isPending || !zadeveCsv.trim()} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium disabled:opacity-40">
+        <button onClick={() => { setCommitted(false); run.mutate(true); }} disabled={run.isPending || (!strankeCsv.trim() && !zadeveCsv.trim())} className="rounded-lg border border-neutral-300 px-4 py-2 text-sm font-medium disabled:opacity-40">
           Preveri
         </button>
         <button onClick={() => run.mutate(false)} disabled={run.isPending || !canCommit} className="rounded-lg bg-[#0D332B] px-4 py-2 text-sm font-semibold text-white disabled:opacity-40">
@@ -115,10 +129,11 @@ export function Import() {
 }
 
 function Result({ result, committed }: { result: ImportResult; committed: boolean }) {
+  const sheetLabel = (s: "stranke" | "zadeve" | "roki") => (s === "stranke" ? "Stranke" : s === "zadeve" ? "Naloge" : "Roki");
   if (committed) {
     return (
       <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-        Uvoženo: <b>{result.created.zadeve}</b> zadev in <b>{result.created.roki}</b> rokov. Ekipa lahko začne.
+        Uvoženo: <b>{result.created.stranke}</b> strank, <b>{result.created.zadeve}</b> nalog in <b>{result.created.roki}</b> rokov. Ekipa lahko začne.
       </div>
     );
   }
@@ -127,13 +142,13 @@ function Result({ result, committed }: { result: ImportResult; committed: boolea
       <div className={`rounded-xl border p-4 text-sm ${result.errors.length ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-800"}`}>
         {result.errors.length
           ? `Predogled: ${result.errors.length} napak — popravi in ponovno preveri. Nič ni bilo zapisano.`
-          : `Predogled OK: pripravljenih ${result.willCreate.zadeve} zadev in ${result.willCreate.roki} rokov. Klikni „Uvozi“.`}
+          : `Predogled OK: pripravljenih ${result.willCreate.stranke} strank, ${result.willCreate.zadeve} nalog in ${result.willCreate.roki} rokov. Klikni „Uvozi“.`}
       </div>
       {result.errors.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
           {result.errors.map((e, i) => (
             <div key={i} className="border-b border-neutral-100 px-4 py-2 text-sm last:border-0">
-              <span className="font-medium">{e.sheet === "zadeve" ? "Zadeve" : "Roki"} vrstica {e.row}:</span>{" "}
+              <span className="font-medium">{sheetLabel(e.sheet)} vrstica {e.row}:</span>{" "}
               <span className="text-neutral-600">{e.message}</span>
             </div>
           ))}
@@ -150,12 +165,30 @@ function Spec() {
       <summary className="cursor-pointer text-sm font-semibold text-[#0D332B]">Katera polja pripraviti (klikni za navodila)</summary>
       <div className="mt-3 grid gap-4 text-xs">
         <div>
-          <div className="mb-1 font-semibold">Zadeve — en vrstica na zadevo</div>
+          <div className="mb-1 font-semibold">Stranke — ena vrstica na stranko (tudi potencialne)</div>
+          <table className="w-full border-collapse">
+            <tbody>
+              <Row c="koda" o="da" v="kratica stranke (TELO…), unikatna — poveže z nalogami" />
+              <Row c="naziv" o="da" v="naziv stranke" />
+              <Row c="vrsta" o="ne" v="pravna ali fizicna (privzeto pravna)" />
+              <Row c="status" o="ne" v="aktivna ali potencialna (privzeto aktivna)" />
+              <Row c="podrocje" o="ne" v="delovno_pravo, javni_usluzbenci, javna_narocila, gdpr, ijz, obligacije, drugo" />
+              <Row c="podlaga" o="ne" v="pogodba, narocilnica ali brez (privzeto brez)" />
+              <Row c="st_dokumenta" o="ne" v="številka pogodbe/naročilnice" />
+              <Row c="velja_od" o="ne" v="YYYY-MM-DD" />
+              <Row c="velja_do" o="ne" v="YYYY-MM-DD" />
+              <Row c="opis_predmeta" o="ne" v="cene / specifike" />
+              <Row c="opombe" o="ne" v="želje / nujne potrebe" />
+            </tbody>
+          </table>
+        </div>
+        <div>
+          <div className="mb-1 font-semibold">Naloge — ena vrstica na nalogo</div>
           <table className="w-full border-collapse">
             <tbody>
               <Row c="koda" o="da" v="poljubna kratka oznaka (Z001…), unikatna — poveže z roki" />
-              <Row c="stranka" o="da" v="naziv stranke" />
-              <Row c="naziv_zadeve" o="da" v="kratek naziv zadeve/projekta" />
+              <Row c="stranka" o="da" v="KRATICA stranke iz lista Stranke (ali že obstoječe stranke)" />
+              <Row c="naziv_zadeve" o="da" v="kratek opis naloge" />
               <Row c="podrocje" o="da" v="delovno_pravo, javni_usluzbenci, javna_narocila, gdpr, ijz, obligacije, drugo" />
               <Row c="obracun" o="da" v="pausal ali po_urah" />
               <Row c="urna_postavka" o="če po_urah" v="npr. 120 (€)" />

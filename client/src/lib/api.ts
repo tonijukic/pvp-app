@@ -130,12 +130,13 @@ export const deleteUser = (id: string) => req<{ deleted: boolean }>("DELETE", `/
 // --- admin: one-time import (Uvoz) ---
 export interface ImportResult {
   dryRun: boolean;
-  willCreate: { zadeve: number; roki: number };
-  created: { zadeve: number; roki: number };
-  errors: { sheet: "zadeve" | "roki"; row: number; message: string }[];
+  willCreate: { stranke: number; zadeve: number; roki: number };
+  created: { stranke: number; zadeve: number; roki: number };
+  errors: { sheet: "stranke" | "zadeve" | "roki"; row: number; message: string }[];
 }
 export const runImport = (body: {
   dryRun: boolean;
+  stranke: Record<string, string>[];
   zadeve: Record<string, string>[];
   roki: Record<string, string>[];
 }) => req<ImportResult>("POST", "/api/import", body);
