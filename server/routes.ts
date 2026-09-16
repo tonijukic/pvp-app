@@ -6,6 +6,7 @@ import { usersRouter } from "./routes/users";
 import { jobsRouter } from "./routes/jobs";
 import { importRouter } from "./routes/import";
 import { clientsRouter } from "./routes/clients";
+import { servicesRouter } from "./routes/services";
 import { requireAuth } from "./middleware/requireAuth";
 
 /**
@@ -19,6 +20,7 @@ export async function registerRoutes(_httpServer: Server, app: Express) {
   app.use("/api/jobs", requireAuth, jobsRouter);
   app.use("/api/import", requireAuth, importRouter);
   app.use("/api/clients", requireAuth, clientsRouter);
+  app.use("/api/services", requireAuth, servicesRouter);
 
   app.get("/api/ping", requireAuth, (_req, res) => {
     res.json({ success: true, data: { pong: true }, error: null });

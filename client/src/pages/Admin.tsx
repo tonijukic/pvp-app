@@ -18,14 +18,14 @@ export function Admin() {
 function Users() {
   const qc = useQueryClient();
   const { data: users } = useQuery({ queryKey: ["users"], queryFn: fetchUsers });
-  const [f, setF] = useState({ displayName: "", email: "", password: "", role: "member" });
+  const [f, setF] = useState({ displayName: "", email: "", password: "", role: "member", payRate: "" });
   const [err, setErr] = useState<string | null>(null);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
   const invalidate = () => qc.invalidateQueries({ queryKey: ["users"] });
 
   const create = useMutation({
-    mutationFn: () => createUser({ username: f.email, email: f.email, password: f.password, role: f.role, displayName: f.displayName }),
-    onSuccess: () => { setF({ displayName: "", email: "", password: "", role: "member" }); invalidate(); },
+    mutationFn: () => createUser({ username: f.email, email: f.email, password: f.password, role: f.role, displayName: f.displayName, payRate: f.payRate ? Number(f.payRate) : null }),
+    onSuccess: () => { setF({ displayName: "", email: "", password: "", role: "member", payRate: "" }); invalidate(); },
     onError: (e) => setErr((e as Error).message),
   });
 
@@ -36,7 +36,7 @@ function Users() {
         Dodajaj in ureja sodelavce ter jim dodeljuj pravice (član vidi le svoje zadeve; admin vidi vse in ureja ekipo).
       </p>
 
-      <form onSubmit={(e) => { e.preventDefault(); setErr(null); if (f.email && f.password) create.mutate(); }} className="mb-4 grid gap-2 rounded-xl border border-neutral-200 bg-white p-3 sm:grid-cols-[1fr_1fr_1fr_110px_auto]">
+      <form onSubmit={(e) => { e.preventDefault(); setErr(null); if (f.email && f.password) create.mutate(); }} className="mb-4 grid gap-2 rounded-xl border border-neutral-200 bg-white p-3 sm:grid-cols-[1fr_1fr_1fr_100px_90px_auto]">
         <input className={input} placeholder="Ime in priimek" value={f.displayName} onChange={(e) => set("displayName", e.target.value)} />
         <input className={input} placeholder="E-pošta (= prijava)" value={f.email} onChange={(e) => set("email", e.target.value)} />
         <input className={input} type="password" placeholder="Začetno geslo" value={f.password} onChange={(e) => set("password", e.target.value)} />
@@ -44,6 +44,7 @@ function Users() {
           <option value="member">član</option>
           <option value="admin">admin</option>
         </select>
+        <input className={input} type="number" step="0.01" placeholder="€/h" title="postavka za plačilo (obračun ekipe)" value={f.payRate} onChange={(e) => set("payRate", e.target.value)} />
         <button className="rounded-lg bg-[#0D332B] px-3 py-2 text-sm font-semibold text-white">Dodaj</button>
       </form>
       {err && <div className="mb-2 text-sm text-red-600">{err}</div>}
@@ -65,12 +66,14 @@ function UserRow({ user, onChanged }: { user: SafeUser; onChanged: () => void })
   const [email, setEmail] = useState(user.email ?? "");
   const [role, setRole] = useState(user.role);
   const [password, setPassword] = useState("");
+  const [payRate, setPayRate] = useState(user.payRate ?? "");
   const [msg, setMsg] = useState<string | null>(null);
 
   const dirty =
     displayName !== (user.displayName ?? "") ||
     email !== (user.email ?? "") ||
     role !== user.role ||
+    payRate !== (user.payRate ?? "") ||
     password.length > 0;
 
   const save = useMutation({
@@ -79,6 +82,7 @@ function UserRow({ user, onChanged }: { user: SafeUser; onChanged: () => void })
         displayName: displayName || null,
         email: email || null,
         role,
+        payRate: payRate === "" ? null : Number(payRate),
         ...(password ? { password } : {}),
       }),
     onSuccess: () => { setPassword(""); setMsg("Shranjeno"); onChanged(); setTimeout(() => setMsg(null), 2000); },
@@ -88,7 +92,7 @@ function UserRow({ user, onChanged }: { user: SafeUser; onChanged: () => void })
   const del = useMutation({ mutationFn: () => deleteUser(user.id), onSuccess: onChanged });
 
   return (
-    <div className="grid gap-2 rounded-xl border border-neutral-200 bg-white p-3 sm:grid-cols-[1fr_1fr_1fr_110px_auto_auto] sm:items-center">
+    <div className="grid gap-2 rounded-xl border border-neutral-200 bg-white p-3 sm:grid-cols-[1fr_1fr_1fr_100px_90px_auto_auto] sm:items-center">
       <input className={input} placeholder="Ime" value={displayName} onChange={(e) => setDisplayName(e.target.value)} />
       <input className={input} placeholder="E-pošta" value={email} onChange={(e) => setEmail(e.target.value)} />
       <input className={input} type="password" placeholder="Novo geslo (neobvezno)" value={password} onChange={(e) => setPassword(e.target.value)} />
@@ -96,6 +100,7 @@ function UserRow({ user, onChanged }: { user: SafeUser; onChanged: () => void })
         <option value="member">član</option>
         <option value="admin">admin</option>
       </select>
+      <input className={input} type="number" step="0.01" placeholder="€/h" title="postavka za plačilo" value={payRate} onChange={(e) => setPayRate(e.target.value)} />
       <button
         disabled={!dirty || save.isPending}
         onClick={() => { setMsg(null); save.mutate(); }}
@@ -104,7 +109,7 @@ function UserRow({ user, onChanged }: { user: SafeUser; onChanged: () => void })
         Shrani
       </button>
       <button onClick={() => del.mutate()} className="text-xs text-red-600">izbriši</button>
-      {msg && <div className="text-xs text-neutral-500 sm:col-span-6">{msg}</div>}
+      {msg && <div className="text-xs text-neutral-500 sm:col-span-7">{msg}</div>}
     </div>
   );
 }

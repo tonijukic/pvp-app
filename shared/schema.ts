@@ -33,12 +33,23 @@ export const PRACTICE_AREAS = [
 export type PracticeArea = (typeof PRACTICE_AREAS)[number];
 
 /** Billing model per matter. */
-export const BILLING_TYPES = ["pausal", "po_urah"] as const;
+export const BILLING_TYPES = ["pausal", "po_urah", "pausal_ure"] as const;
 export type BillingType = (typeof BILLING_TYPES)[number];
 
-/** Matter lifecycle phase. */
-export const MATTER_STATUSES = ["odprta", "v_teku", "caka", "zakljucena"] as const;
+/** Matter lifecycle phase (incl. Nina's final-check gate before closing). */
+export const MATTER_STATUSES = [
+  "odprta",
+  "v_teku",
+  "caka",
+  "za_pregled",
+  "posredovano",
+  "zakljucena",
+] as const;
 export type MatterStatus = (typeof MATTER_STATUSES)[number];
+
+/** Cenik units. */
+export const SERVICE_UNITS = ["ura", "mesec", "kos"] as const;
+export type ServiceUnit = (typeof SERVICE_UNITS)[number];
 
 /** Deadline severity, 1 (low) .. 3 (critical). */
 export const DEADLINE_STATUSES = ["odprt", "opravljen"] as const;
@@ -63,6 +74,7 @@ export const appUsers = pgTable("app_users", {
   role: text("role").$type<AppRole>().notNull().default("member"),
   email: text("email"),
   displayName: text("display_name"),
+  payRate: numeric("pay_rate", { precision: 10, scale: 2 }), // urna postavka za plačilo člana (obračun ekipe)
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -73,6 +85,7 @@ export const createUserSchema = z.object({
   role: z.enum(APP_ROLE_VALUES).default("member"),
   email: z.string().email().optional(),
   displayName: z.string().max(120).nullable().optional(),
+  payRate: z.coerce.number().min(0).max(100000).nullable().optional(),
 });
 
 /** Admin edits an existing team member: rename, change e-mail, reassign
@@ -82,6 +95,7 @@ export const updateUserSchema = z.object({
   role: z.enum(APP_ROLE_VALUES).optional(),
   email: z.string().email().nullable().optional(),
   displayName: z.string().max(120).nullable().optional(),
+  payRate: z.coerce.number().min(0).max(100000).nullable().optional(),
 });
 export type UpdateUser = z.infer<typeof updateUserSchema>;
 
@@ -98,6 +112,7 @@ export const matters = pgTable("matters", {
   clientId: varchar("client_id"), // vez na stranko (CRM), ko je izbrana iz baze
   title: text("title").notNull(),
   area: text("area").$type<PracticeArea>().notNull().default("drugo"),
+  serviceCode: text("service_code"), // kratica storitve iz cenika (npr. PS, NPA)
   billingType: text("billing_type").$type<BillingType>().notNull().default("po_urah"),
   hourlyRate: numeric("hourly_rate", { precision: 10, scale: 2 }),
   flatFee: numeric("flat_fee", { precision: 10, scale: 2 }),
@@ -112,6 +127,7 @@ export const matters = pgTable("matters", {
 export const insertMatterSchema = createInsertSchema(matters, {
   client: (s) => s.min(1, "Stranka je obvezna").max(200),
   clientId: (s) => s.optional(),
+  serviceCode: (s) => s.max(40).optional(),
   title: (s) => s.min(1, "Opis naloge je obvezen").max(300),
   area: () => z.enum(PRACTICE_AREAS),
   billingType: () => z.enum(BILLING_TYPES),
@@ -260,3 +276,32 @@ export const updateClientSchema = insertClientSchema.partial();
 export type Client = typeof clients.$inferSelect;
 export type InsertClient = z.infer<typeof insertClientSchema>;
 export type UpdateClient = z.infer<typeof updateClientSchema>;
+
+// ---------------------------------------------------------------------------
+// Services (Cenik) — Nina's price list; PO = pravna oseba, FO = fizična oseba
+// ---------------------------------------------------------------------------
+
+export const services = pgTable("services", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(), // kratica (PS, PM, NPA…)
+  name: text("name").notNull(),
+  unit: text("unit").$type<ServiceUnit>().notNull().default("ura"),
+  pricePO: numeric("price_po", { precision: 10, scale: 2 }), // pravna oseba
+  priceFO: numeric("price_fo", { precision: 10, scale: 2 }), // fizična oseba
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertServiceSchema = createInsertSchema(services, {
+  code: (s) => s.min(1, "Kratica je obvezna").max(40),
+  name: (s) => s.min(1, "Naziv je obvezen").max(300),
+  unit: () => z.enum(SERVICE_UNITS).default("ura"),
+  pricePO: () => z.coerce.number().min(0).max(1000000).nullable().optional(),
+  priceFO: () => z.coerce.number().min(0).max(1000000).nullable().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const updateServiceSchema = insertServiceSchema.partial();
+
+export type Service = typeof services.$inferSelect;
+export type InsertService = z.infer<typeof insertServiceSchema>;
+export type UpdateService = z.infer<typeof updateServiceSchema>;

@@ -36,6 +36,7 @@ usersRouter.post("/", requireAdmin, async (req, res) => {
     role: r.data.role,
     email: r.data.email ?? null,
     displayName: r.data.displayName ?? null,
+    payRate: r.data.payRate ?? null,
   });
   res.json({ success: true, data: safe(user), error: null });
 });
@@ -62,6 +63,7 @@ usersRouter.patch("/:id", requireAdmin, async (req, res) => {
   if (r.data.displayName !== undefined) patch.displayName = r.data.displayName;
   if (r.data.email !== undefined) patch.email = r.data.email;
   if (r.data.role !== undefined) patch.role = r.data.role;
+  if (r.data.payRate !== undefined) patch.payRate = r.data.payRate;
   if (r.data.password) patch.passwordHash = hashPassword(r.data.password);
   const user = await storage.updateUser(req.params.id, patch);
   res.json({ success: true, data: user ? safe(user) : null, error: null });

@@ -7,6 +7,7 @@ import type {
   ClientKind,
   ClientStatus,
   ContractType,
+  ServiceUnit,
 } from "./schema";
 
 export const AREA_LABELS: Record<PracticeArea, string> = {
@@ -22,13 +23,22 @@ export const AREA_LABELS: Record<PracticeArea, string> = {
 export const BILLING_LABELS: Record<BillingType, string> = {
   pausal: "Pavšal",
   po_urah: "Po urah",
+  pausal_ure: "Pavšal + ure",
 };
 
 export const STATUS_LABELS: Record<MatterStatus, string> = {
   odprta: "Odprta",
   v_teku: "V teku",
   caka: "Čaka (stranko/odgovor)",
+  za_pregled: "Za pregled",
+  posredovano: "Posredovano stranki",
   zakljucena: "Zaključena",
+};
+
+export const SERVICE_UNIT_LABELS: Record<ServiceUnit, string> = {
+  ura: "ura",
+  mesec: "mesec",
+  kos: "kos",
 };
 
 export const CLIENT_KIND_LABELS: Record<ClientKind, string> = {

@@ -68,6 +68,46 @@ trackerRouter.get("/team", async (_req, res) => {
   ]);
 });
 
+// --- Team billing (obračun ekipe) — admin only ----------------------------
+// Hours logged per member in a month × their pay rate. Only Nina sees this.
+
+trackerRouter.get("/team-billing", requireAdmin, async (req, res) => {
+  const month =
+    typeof req.query.month === "string" && /^\d{4}-\d{2}$/.test(req.query.month)
+      ? req.query.month
+      : new Date().toISOString().slice(0, 7);
+  const from = `${month}-01`;
+  const to = `${month}-31`;
+
+  const users = await storage.listUsers();
+  const meta = new Map(users.map((u) => [u.username, { name: u.displayName ?? u.username, payRate: u.payRate }]));
+
+  const time = await storage.listTimeEntries({ from, to });
+  const hoursByUser = new Map<string, number>();
+  for (const t of time) {
+    const k = t.userId ?? "?";
+    hoursByUser.set(k, (hoursByUser.get(k) ?? 0) + Number(t.hours));
+  }
+
+  const round2 = (n: number) => Math.round(n * 100) / 100;
+  const rows = [...hoursByUser.entries()]
+    .map(([username, hours]) => {
+      const m = meta.get(username);
+      const payRate = m?.payRate != null ? Number(m.payRate) : null;
+      const name = m?.name ?? (username === config.auth.adminUser ? config.auth.adminName : username);
+      return {
+        username,
+        name,
+        hours: round2(hours),
+        payRate,
+        amount: payRate != null ? round2(hours * payRate) : null,
+      };
+    })
+    .sort((a, b) => b.hours - a.hours);
+
+  ok(res, { month, rows });
+});
+
 // --- Matters ---------------------------------------------------------------
 
 trackerRouter.get("/matters", async (req, res) => {

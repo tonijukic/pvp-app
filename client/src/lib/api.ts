@@ -9,6 +9,9 @@ import type {
   Client,
   InsertClient,
   UpdateClient,
+  Service,
+  InsertService,
+  UpdateService,
 } from "@shared/schema";
 
 export interface Me {
@@ -33,6 +36,7 @@ export interface SafeUser {
   role: "member" | "admin";
   email: string | null;
   displayName: string | null;
+  payRate: string | null;
 }
 
 async function req<T>(method: string, url: string, body?: unknown): Promise<T> {
@@ -73,6 +77,24 @@ export interface TeamMember {
   role: "member" | "admin";
 }
 export const fetchTeam = () => req<TeamMember[]>("GET", "/api/team");
+
+// --- services (Cenik) ---
+export const fetchServices = () => req<Service[]>("GET", "/api/services");
+export const createService = (body: Partial<InsertService>) => req<Service>("POST", "/api/services", body);
+export const updateService = (id: string, body: UpdateService) =>
+  req<Service>("PATCH", `/api/services/${id}`, body);
+export const deleteService = (id: string) => req<{ deleted: boolean }>("DELETE", `/api/services/${id}`);
+
+// --- team billing (obračun ekipe) — admin ---
+export interface TeamBillingRow {
+  username: string;
+  name: string;
+  hours: number;
+  payRate: number | null;
+  amount: number | null;
+}
+export const fetchTeamBilling = (month?: string) =>
+  req<{ month: string; rows: TeamBillingRow[] }>("GET", `/api/team-billing${month ? `?month=${month}` : ""}`);
 
 // --- matters ---
 export const fetchMatters = () => req<Matter[]>("GET", "/api/matters");
@@ -120,10 +142,11 @@ export const createUser = (body: {
   role: string;
   email?: string;
   displayName?: string;
+  payRate?: number | null;
 }) => req<SafeUser>("POST", "/api/users", body);
 export const updateUser = (
   id: string,
-  body: { displayName?: string | null; email?: string | null; role?: string; password?: string },
+  body: { displayName?: string | null; email?: string | null; role?: string; password?: string; payRate?: number | null },
 ) => req<SafeUser>("PATCH", `/api/users/${id}`, body);
 export const deleteUser = (id: string) => req<{ deleted: boolean }>("DELETE", `/api/users/${id}`);
 

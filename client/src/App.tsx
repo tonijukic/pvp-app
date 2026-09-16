@@ -10,6 +10,8 @@ import { Deadlines } from "./pages/Deadlines";
 import { TimeQuick } from "./pages/TimeQuick";
 import { Team } from "./pages/Team";
 import { Stranke } from "./pages/Stranke";
+import { Cenik } from "./pages/Cenik";
+import { Obracun } from "./pages/Obracun";
 import { Import } from "./pages/Import";
 import { Admin } from "./pages/Admin";
 
@@ -35,7 +37,9 @@ export default function App() {
         <Route path="/roki" component={Deadlines} />
         <Route path="/ure" component={TimeQuick} />
         <Route path="/stranke">{me.role === "admin" ? <Stranke /> : <NotAllowed />}</Route>
+        <Route path="/cenik">{me.role === "admin" ? <Cenik /> : <NotAllowed />}</Route>
         <Route path="/ekipa">{me.role === "admin" ? <Team /> : <NotAllowed />}</Route>
+        <Route path="/obracun">{me.role === "admin" ? <Obracun /> : <NotAllowed />}</Route>
         <Route path="/uvoz">{me.role === "admin" ? <Import /> : <NotAllowed />}</Route>
         <Route path="/nastavitve">{me.role === "admin" ? <Admin /> : <NotAllowed />}</Route>
         <Route>{() => <div className="text-neutral-500">Stran ne obstaja.</div>}</Route>

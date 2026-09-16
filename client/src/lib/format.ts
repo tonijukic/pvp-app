@@ -23,4 +23,5 @@ export {
   CLIENT_KIND_LABELS,
   CLIENT_STATUS_LABELS,
   CONTRACT_TYPE_LABELS,
+  SERVICE_UNIT_LABELS,
 } from "@shared/labels";

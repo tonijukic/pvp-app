@@ -7,7 +7,7 @@ import {
 } from "../lib/api";
 import type { Me } from "../lib/api";
 import { euro, hoursFmt, todayIso, AREA_LABELS, BILLING_LABELS, STATUS_LABELS, SEVERITY_LABELS, DEADLINE_KIND_LABELS, DEADLINE_RECURRENCE_LABELS, daysLeft } from "../lib/format";
-import { DEADLINE_KINDS, DEADLINE_RECURRENCE } from "@shared/schema";
+import { DEADLINE_KINDS, DEADLINE_RECURRENCE, MATTER_STATUSES } from "@shared/schema";
 import { useTeam } from "../lib/team";
 import { Assignee } from "../components/Assignee";
 
@@ -19,14 +19,13 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
   const [tab, setTab] = useState<Tab>("ure");
   const { data: matter, isLoading, error } = useQuery({ queryKey: ["matter", id], queryFn: () => fetchMatter(id) });
   const { members, nameOf } = useTeam();
-  const reassign = useMutation({
-    mutationFn: (username: string) => updateMatter(id, { assignedTo: username || null }),
-    onSuccess: () => {
-      qc.invalidateQueries({ queryKey: ["matter", id] });
-      qc.invalidateQueries({ queryKey: ["matters"] });
-      qc.invalidateQueries({ queryKey: ["overview"] });
-    },
-  });
+  const inval = () => {
+    qc.invalidateQueries({ queryKey: ["matter", id] });
+    qc.invalidateQueries({ queryKey: ["matters"] });
+    qc.invalidateQueries({ queryKey: ["overview"] });
+  };
+  const reassign = useMutation({ mutationFn: (username: string) => updateMatter(id, { assignedTo: username || null }), onSuccess: inval });
+  const setStatus = useMutation({ mutationFn: (status: string) => updateMatter(id, { status: status as never }), onSuccess: inval });
 
   if (isLoading) return <p className="text-neutral-500">Nalagam…</p>;
   if (error) return <p className="text-red-600">{(error as Error).message}</p>;
@@ -38,17 +37,17 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
       <div className="mt-1 mb-4">
         <h1 className="text-xl font-semibold text-[#0D332B]">{matter.client}</h1>
         <div className="text-sm text-neutral-500">
-          {matter.title} · {AREA_LABELS[matter.area]} · {BILLING_LABELS[matter.billingType]}
-          {matter.billingType === "po_urah" && matter.hourlyRate ? ` (${euro(Number(matter.hourlyRate))}/h)` : ""}
-          {matter.billingType === "pausal" && matter.flatFee ? ` (${euro(Number(matter.flatFee))})` : ""}
-          {" · "}{STATUS_LABELS[matter.status]}
+          {matter.title} · {AREA_LABELS[matter.area]}
+          {matter.serviceCode ? ` · ${matter.serviceCode}` : ""} · {BILLING_LABELS[matter.billingType]}
+          {(matter.billingType === "po_urah" || matter.billingType === "pausal_ure") && matter.hourlyRate ? ` (${euro(Number(matter.hourlyRate))}/h)` : ""}
+          {(matter.billingType === "pausal" || matter.billingType === "pausal_ure") && matter.flatFee ? ` (${euro(Number(matter.flatFee))} pavšal)` : ""}
         </div>
-        <div className="mt-2 flex items-center gap-2">
+        <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="text-sm text-neutral-500">Nosilec:</span>
           <Assignee name={nameOf(matter.assignedTo)} size="xs" />
           {me.role === "admin" && (
             <select
-              className="ml-auto rounded-lg border border-neutral-300 px-2 py-1 text-sm"
+              className="rounded-lg border border-neutral-300 px-2 py-1 text-sm"
               value={matter.assignedTo ?? ""}
               onChange={(e) => reassign.mutate(e.target.value)}
               title="Prerazporedi nosilca"
@@ -56,6 +55,19 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
               <option value="">— nedodeljeno —</option>
               {members.map((mm) => <option key={mm.username} value={mm.username}>{mm.displayName}{mm.role === "admin" ? " (admin)" : ""}</option>)}
             </select>
+          )}
+          <span className="ml-auto text-sm text-neutral-500">Status:</span>
+          {me.role === "admin" ? (
+            <select
+              className="rounded-lg border border-neutral-300 px-2 py-1 text-sm"
+              value={matter.status}
+              onChange={(e) => setStatus.mutate(e.target.value)}
+              title="Spremeni status (vključno z 'Za pregled' → 'Posredovano stranki')"
+            >
+              {MATTER_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+            </select>
+          ) : (
+            <span className="rounded-full bg-[#0D332B]/5 px-2 py-0.5 text-xs text-[#0D332B]">{STATUS_LABELS[matter.status]}</span>
           )}
         </div>
       </div>

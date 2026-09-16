@@ -21,7 +21,15 @@ export function Layout({
   const [loc] = useLocation();
   const nav =
     me.role === "admin"
-      ? [...NAV, { href: "/stranke", label: "Stranke" }, { href: "/ekipa", label: "Ekipa" }, { href: "/uvoz", label: "Uvoz" }, { href: "/nastavitve", label: "Nastavitve" }]
+      ? [
+          ...NAV,
+          { href: "/stranke", label: "Stranke" },
+          { href: "/cenik", label: "Cenik" },
+          { href: "/ekipa", label: "Ekipa" },
+          { href: "/obracun", label: "Obračun" },
+          { href: "/uvoz", label: "Uvoz" },
+          { href: "/nastavitve", label: "Nastavitve" },
+        ]
       : NAV;
 
   async function doLogout() {

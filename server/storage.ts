@@ -7,6 +7,7 @@ import {
   deadlines,
   costs,
   clients,
+  services,
   type AppUserRow,
   type AppRole,
   type Matter,
@@ -23,6 +24,9 @@ import {
   type InsertClient,
   type UpdateClient,
   type ClientStatus,
+  type Service,
+  type InsertService,
+  type UpdateService,
 } from "@shared/schema";
 import { config } from "./config";
 import { getDb } from "./db";
@@ -50,6 +54,7 @@ export interface NewUser {
   role: AppRole;
   email?: string | null;
   displayName?: string | null;
+  payRate?: number | null;
 }
 
 export interface TimeFilter {
@@ -114,6 +119,13 @@ export interface IStorage {
   createClient(c: InsertClient): Promise<Client>;
   updateClient(id: string, patch: UpdateClient): Promise<Client | undefined>;
   deleteClient(id: string): Promise<boolean>;
+
+  // Services (Cenik)
+  listServices(): Promise<Service[]>;
+  getServiceByCode(code: string): Promise<Service | undefined>;
+  createService(s: InsertService): Promise<Service>;
+  updateService(id: string, patch: UpdateService): Promise<Service | undefined>;
+  deleteService(id: string): Promise<boolean>;
 }
 
 // ---------------------------------------------------------------------------
@@ -127,6 +139,7 @@ export class MemStorage implements IStorage {
   private deadlines = new Map<string, Deadline>();
   private costs = new Map<string, Cost>();
   private clients = new Map<string, Client>();
+  private services = new Map<string, Service>();
 
   // --- Users ---
   async getUserById(id: string) {
@@ -151,6 +164,7 @@ export class MemStorage implements IStorage {
       role: u.role,
       email: u.email ?? null,
       displayName: u.displayName ?? null,
+      payRate: numStr(u.payRate),
       createdAt: now,
       updatedAt: now,
     };
@@ -160,7 +174,16 @@ export class MemStorage implements IStorage {
   async updateUser(id: string, patch: Partial<NewUser>) {
     const cur = this.users.get(id);
     if (!cur) return undefined;
-    const next: AppUserRow = { ...cur, ...patch, updatedAt: new Date() };
+    const next: AppUserRow = {
+      ...cur,
+      ...("username" in patch && patch.username !== undefined ? { username: patch.username } : {}),
+      ...("passwordHash" in patch && patch.passwordHash !== undefined ? { passwordHash: patch.passwordHash } : {}),
+      ...("role" in patch && patch.role !== undefined ? { role: patch.role } : {}),
+      ...("email" in patch ? { email: patch.email ?? null } : {}),
+      ...("displayName" in patch ? { displayName: patch.displayName ?? null } : {}),
+      ...("payRate" in patch ? { payRate: numStr(patch.payRate) } : {}),
+      updatedAt: new Date(),
+    };
     this.users.set(id, next);
     return next;
   }
@@ -185,6 +208,7 @@ export class MemStorage implements IStorage {
       clientId: m.clientId ?? null,
       title: m.title,
       area: m.area,
+      serviceCode: m.serviceCode ?? null,
       billingType: m.billingType,
       hourlyRate: numStr(m.hourlyRate),
       flatFee: numStr(m.flatFee),
@@ -207,6 +231,7 @@ export class MemStorage implements IStorage {
       ...("clientId" in patch ? { clientId: patch.clientId ?? null } : {}),
       ...("title" in patch && patch.title !== undefined ? { title: patch.title } : {}),
       ...("area" in patch && patch.area !== undefined ? { area: patch.area } : {}),
+      ...("serviceCode" in patch ? { serviceCode: patch.serviceCode ?? null } : {}),
       ...("billingType" in patch && patch.billingType !== undefined ? { billingType: patch.billingType } : {}),
       ...("hourlyRate" in patch ? { hourlyRate: numStr(patch.hourlyRate) } : {}),
       ...("flatFee" in patch ? { flatFee: numStr(patch.flatFee) } : {}),
@@ -380,6 +405,48 @@ export class MemStorage implements IStorage {
   async deleteClient(id: string) {
     return this.clients.delete(id);
   }
+
+  // --- Services (Cenik) ---
+  async listServices() {
+    return [...this.services.values()].sort((a, b) => a.code.localeCompare(b.code, "sl"));
+  }
+  async getServiceByCode(code: string) {
+    const lc = code.toLowerCase();
+    return [...this.services.values()].find((s) => s.code.toLowerCase() === lc);
+  }
+  async createService(s: InsertService) {
+    const now = new Date();
+    const row: Service = {
+      id: randomUUID(),
+      code: s.code,
+      name: s.name,
+      unit: s.unit,
+      pricePO: numStr(s.pricePO),
+      priceFO: numStr(s.priceFO),
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.services.set(row.id, row);
+    return row;
+  }
+  async updateService(id: string, patch: UpdateService) {
+    const cur = this.services.get(id);
+    if (!cur) return undefined;
+    const next: Service = {
+      ...cur,
+      ...("code" in patch && patch.code !== undefined ? { code: patch.code } : {}),
+      ...("name" in patch && patch.name !== undefined ? { name: patch.name } : {}),
+      ...("unit" in patch && patch.unit !== undefined ? { unit: patch.unit } : {}),
+      ...("pricePO" in patch ? { pricePO: numStr(patch.pricePO) } : {}),
+      ...("priceFO" in patch ? { priceFO: numStr(patch.priceFO) } : {}),
+      updatedAt: new Date(),
+    };
+    this.services.set(id, next);
+    return next;
+  }
+  async deleteService(id: string) {
+    return this.services.delete(id);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -424,16 +491,20 @@ export class DbStorage implements IStorage {
         role: u.role,
         email: u.email ?? null,
         displayName: u.displayName ?? null,
+        payRate: numStr(u.payRate),
       })
       .returning();
     return row;
   }
   async updateUser(id: string, patch: Partial<NewUser>) {
-    const [row] = await this.db
-      .update(appUsers)
-      .set({ ...patch, updatedAt: new Date() })
-      .where(eq(appUsers.id, id))
-      .returning();
+    const set: Record<string, unknown> = { updatedAt: new Date() };
+    if (patch.username !== undefined) set.username = patch.username;
+    if (patch.passwordHash !== undefined) set.passwordHash = patch.passwordHash;
+    if (patch.role !== undefined) set.role = patch.role;
+    if ("email" in patch) set.email = patch.email ?? null;
+    if ("displayName" in patch) set.displayName = patch.displayName ?? null;
+    if ("payRate" in patch) set.payRate = numStr(patch.payRate);
+    const [row] = await this.db.update(appUsers).set(set).where(eq(appUsers.id, id)).returning();
     return row;
   }
   async deleteUser(id: string) {
@@ -460,6 +531,7 @@ export class DbStorage implements IStorage {
         clientId: m.clientId ?? null,
         title: m.title,
         area: m.area,
+        serviceCode: m.serviceCode ?? null,
         billingType: m.billingType,
         hourlyRate: numStr(m.hourlyRate),
         flatFee: numStr(m.flatFee),
@@ -477,6 +549,7 @@ export class DbStorage implements IStorage {
     if ("clientId" in patch) set.clientId = patch.clientId ?? null;
     if (patch.title !== undefined) set.title = patch.title;
     if (patch.area !== undefined) set.area = patch.area;
+    if ("serviceCode" in patch) set.serviceCode = patch.serviceCode ?? null;
     if (patch.billingType !== undefined) set.billingType = patch.billingType;
     if ("hourlyRate" in patch) set.hourlyRate = numStr(patch.hourlyRate);
     if ("flatFee" in patch) set.flatFee = numStr(patch.flatFee);
@@ -645,6 +718,45 @@ export class DbStorage implements IStorage {
   }
   async deleteClient(id: string) {
     const res = await this.db.delete(clients).where(eq(clients.id, id)).returning();
+    return res.length > 0;
+  }
+
+  // --- Services (Cenik) ---
+  async listServices() {
+    return this.db.select().from(services).orderBy(services.code);
+  }
+  async getServiceByCode(code: string) {
+    const [row] = await this.db
+      .select()
+      .from(services)
+      .where(sql`lower(${services.code}) = lower(${code})`);
+    return row;
+  }
+  async createService(s: InsertService) {
+    const [row] = await this.db
+      .insert(services)
+      .values({
+        code: s.code,
+        name: s.name,
+        unit: s.unit,
+        pricePO: numStr(s.pricePO),
+        priceFO: numStr(s.priceFO),
+      })
+      .returning();
+    return row;
+  }
+  async updateService(id: string, patch: UpdateService) {
+    const set: Record<string, unknown> = { updatedAt: new Date() };
+    if (patch.code !== undefined) set.code = patch.code;
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.unit !== undefined) set.unit = patch.unit;
+    if ("pricePO" in patch) set.pricePO = numStr(patch.pricePO);
+    if ("priceFO" in patch) set.priceFO = numStr(patch.priceFO);
+    const [row] = await this.db.update(services).set(set).where(eq(services.id, id)).returning();
+    return row;
+  }
+  async deleteService(id: string) {
+    const res = await this.db.delete(services).where(eq(services.id, id)).returning();
     return res.length > 0;
   }
 }

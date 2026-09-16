@@ -1,18 +1,36 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
-import { fetchMatters, createMatter, fetchMe, fetchClients } from "../lib/api";
+import { fetchMatters, createMatter, fetchMe, fetchClients, fetchServices, fetchAllDeadlines } from "../lib/api";
 import { AREA_LABELS, BILLING_LABELS, STATUS_LABELS, todayIso } from "../lib/format";
-import { PRACTICE_AREAS, BILLING_TYPES, MATTER_STATUSES } from "@shared/schema";
+import { PRACTICE_AREAS, BILLING_TYPES } from "@shared/schema";
 import { useTeam } from "../lib/team";
 import { Assignee } from "../components/Assignee";
+
+const fsel = "rounded-lg border border-neutral-300 px-2 py-1 text-sm";
 
 export function Matters() {
   const qc = useQueryClient();
   const { data: me } = useQuery({ queryKey: ["me"], queryFn: fetchMe });
   const { data: matters, isLoading } = useQuery({ queryKey: ["matters"], queryFn: fetchMatters });
-  const { nameOf } = useTeam();
+  const { data: clients } = useQuery({ queryKey: ["clients"], queryFn: () => fetchClients() });
+  const { data: deadlines } = useQuery({ queryKey: ["deadlines"], queryFn: fetchAllDeadlines });
+  const { nameOf, members } = useTeam();
   const [open, setOpen] = useState(false);
+  const [fArea, setFArea] = useState("");
+  const [fNosilec, setFNosilec] = useState("");
+  const [fClient, setFClient] = useState("");
+  const [fRok, setFRok] = useState(false);
+
+  const openRokMatterIds = new Set((deadlines ?? []).filter((d) => d.status === "odprt").map((d) => d.matterId));
+  const filtered = (matters ?? []).filter(
+    (m) =>
+      (!fArea || m.area === fArea) &&
+      (!fNosilec || (fNosilec === "__none__" ? !m.assignedTo : m.assignedTo === fNosilec)) &&
+      (!fClient || m.clientId === fClient) &&
+      (!fRok || openRokMatterIds.has(m.id)),
+  );
+  const hasFilter = fArea || fNosilec || fClient || fRok;
 
   return (
     <div>
@@ -30,13 +48,37 @@ export function Matters() {
 
       {open && <CreateForm onDone={() => { setOpen(false); qc.invalidateQueries({ queryKey: ["matters"] }); qc.invalidateQueries({ queryKey: ["overview"] }); }} />}
 
+      {!!matters?.length && (
+        <div className="mb-3 flex flex-wrap items-center gap-2">
+          <select className={fsel} value={fArea} onChange={(e) => setFArea(e.target.value)}>
+            <option value="">vsa področja</option>
+            {PRACTICE_AREAS.map((a) => <option key={a} value={a}>{AREA_LABELS[a]}</option>)}
+          </select>
+          <select className={fsel} value={fNosilec} onChange={(e) => setFNosilec(e.target.value)}>
+            <option value="">vsi nosilci</option>
+            <option value="__none__">nedodeljeno</option>
+            {members.map((mm) => <option key={mm.username} value={mm.username}>{mm.displayName}</option>)}
+          </select>
+          <select className={fsel} value={fClient} onChange={(e) => setFClient(e.target.value)}>
+            <option value="">vse stranke</option>
+            {(clients ?? []).map((c) => <option key={c.id} value={c.id}>{c.code} - {c.name}</option>)}
+          </select>
+          <label className="flex items-center gap-1 text-sm text-neutral-600">
+            <input type="checkbox" checked={fRok} onChange={(e) => setFRok(e.target.checked)} /> z odprtim rokom
+          </label>
+          {hasFilter && <button onClick={() => { setFArea(""); setFNosilec(""); setFClient(""); setFRok(false); }} className="text-xs text-[#0D332B] underline">počisti</button>}
+        </div>
+      )}
+
       {isLoading ? (
         <p className="text-neutral-500">Nalagam…</p>
       ) : !matters?.length ? (
         <p className="text-neutral-500">Ni nalog.</p>
+      ) : !filtered.length ? (
+        <p className="text-neutral-500">Ni nalog za izbrane filtre.</p>
       ) : (
         <div className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white">
-          {matters.map((m) => (
+          {filtered.map((m) => (
             <Link key={m.id} href={`/zadeve/${m.id}`} className="flex items-center justify-between gap-3 px-4 py-3 hover:bg-neutral-50">
               <div className="min-w-0">
                 <div className="font-medium">{m.client}</div>
@@ -58,19 +100,38 @@ export function Matters() {
 function CreateForm({ onDone }: { onDone: () => void }) {
   const { members } = useTeam();
   const { data: clients } = useQuery({ queryKey: ["clients"], queryFn: () => fetchClients() });
+  const { data: services } = useQuery({ queryKey: ["services"], queryFn: fetchServices });
   const [f, setF] = useState({
     clientId: "",
     title: "",
     area: "delovno_pravo",
+    serviceCode: "",
     billingType: "po_urah",
     hourlyRate: "",
     flatFee: "",
-    status: "odprta",
     openedAt: todayIso(),
     assignedTo: "",
   });
   const [err, setErr] = useState<string | null>(null);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  // Picking a service pulls its price from the cenik (PO/FO by client kind)
+  // and pre-sets the billing type + rate. Everything stays editable.
+  const onService = (code: string) => {
+    const svc = services?.find((s) => s.code === code);
+    if (!svc) { set("serviceCode", code); return; }
+    const cl = clients?.find((c) => c.id === f.clientId);
+    const price = cl?.kind === "fizicna" ? svc.priceFO : svc.pricePO;
+    const p = price != null ? String(price) : "";
+    setF((prev) =>
+      svc.unit === "ura"
+        ? { ...prev, serviceCode: code, billingType: "po_urah", hourlyRate: p || prev.hourlyRate }
+        : { ...prev, serviceCode: code, billingType: "pausal", flatFee: p || prev.flatFee },
+    );
+  };
+
+  const showHourly = f.billingType === "po_urah" || f.billingType === "pausal_ure";
+  const showFlat = f.billingType === "pausal" || f.billingType === "pausal_ure";
 
   const mut = useMutation({
     mutationFn: () => {
@@ -80,11 +141,12 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         clientId: f.clientId || undefined,
         title: f.title,
         area: f.area as never,
+        serviceCode: f.serviceCode || undefined,
         billingType: f.billingType as never,
-        status: f.status as never,
+        status: "odprta" as never, // new tasks always start "odprta"
         openedAt: f.openedAt as never,
-        hourlyRate: f.billingType === "po_urah" && f.hourlyRate ? Number(f.hourlyRate) : undefined,
-        flatFee: f.billingType === "pausal" && f.flatFee ? Number(f.flatFee) : undefined,
+        hourlyRate: showHourly && f.hourlyRate ? Number(f.hourlyRate) : undefined,
+        flatFee: showFlat && f.flatFee ? Number(f.flatFee) : undefined,
         assignedTo: f.assignedTo || undefined,
       });
     },
@@ -112,23 +174,25 @@ function CreateForm({ onDone }: { onDone: () => void }) {
           {PRACTICE_AREAS.map((a) => <option key={a} value={a}>{AREA_LABELS[a]}</option>)}
         </select>
       </label>
+      <label className="text-sm">Storitev (iz cenika)
+        <select className={input} value={f.serviceCode} onChange={(e) => onService(e.target.value)}>
+          <option value="">— brez / ročno —</option>
+          {(services ?? []).map((s) => <option key={s.id} value={s.code}>{s.code} - {s.name}</option>)}
+        </select>
+      </label>
       <label className="text-sm">Obračun
         <select className={input} value={f.billingType} onChange={(e) => set("billingType", e.target.value)}>
           {BILLING_TYPES.map((b) => <option key={b} value={b}>{BILLING_LABELS[b]}</option>)}
         </select>
       </label>
-      {f.billingType === "po_urah" ? (
+      <label className="text-sm">Odprto<input type="date" className={input} value={f.openedAt} onChange={(e) => set("openedAt", e.target.value)} /></label>
+      {showHourly && (
         <label className="text-sm">Urna postavka (€)<input type="number" step="0.01" className={input} value={f.hourlyRate} onChange={(e) => set("hourlyRate", e.target.value)} /></label>
-      ) : (
+      )}
+      {showFlat && (
         <label className="text-sm">Pavšal (€)<input type="number" step="0.01" className={input} value={f.flatFee} onChange={(e) => set("flatFee", e.target.value)} /></label>
       )}
-      <label className="text-sm">Status
-        <select className={input} value={f.status} onChange={(e) => set("status", e.target.value)}>
-          {MATTER_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
-        </select>
-      </label>
-      <label className="text-sm">Odprto<input type="date" className={input} value={f.openedAt} onChange={(e) => set("openedAt", e.target.value)} /></label>
-      <label className="text-sm">Nosilec (kdo dela na zadevi)
+      <label className="text-sm">Nosilec (kdo dela na nalogi)
         <select className={input} value={f.assignedTo} onChange={(e) => set("assignedTo", e.target.value)}>
           <option value="">— nedodeljeno —</option>
           {members.map((mm) => <option key={mm.username} value={mm.username}>{mm.displayName}{mm.role === "admin" ? " (admin)" : ""}</option>)}
