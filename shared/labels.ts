@@ -2,6 +2,8 @@ import type {
   PracticeArea,
   BillingType,
   MatterStatus,
+  WaitingReason,
+  AgreementType,
   DeadlineKind,
   DeadlineRecurrence,
   ClientKind,
@@ -33,6 +35,26 @@ export const STATUS_LABELS: Record<MatterStatus, string> = {
   za_pregled: "Za pregled",
   posredovano: "Posredovano stranki",
   zakljucena: "Zaključena",
+};
+
+export const WAITING_REASON_LABELS: Record<WaitingReason, string> = {
+  stranka_odgovor: "Čaka odgovor stranke",
+  stranka_gradivo: "Čaka gradivo/dokumentacijo stranke",
+  stranka_placilo: "Čaka plačilo/avans",
+  nasprotna_stranka: "Čaka nasprotno stranko",
+  organ_odlocba: "Čaka odločbo/sklep organa",
+  sodisce: "Čaka sodišče",
+  tretja_oseba: "Čaka tretjo osebo (notar/izvedenec/cenilec)",
+  potek_roka: "Čaka potek roka",
+  interni_pregled: "Interni pregled (vodja/sodelavka)",
+  drugo: "Drugo",
+};
+
+export const AGREEMENT_TYPE_LABELS: Record<AgreementType, string> = {
+  narocilnica: "Naročilnica",
+  pogodba: "Pogodba",
+  ustno: "Ustno naročilo",
+  mail: "Mail",
 };
 
 export const SERVICE_UNIT_LABELS: Record<ServiceUnit, string> = {

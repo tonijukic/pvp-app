@@ -8,6 +8,9 @@ import {
   costs,
   clients,
   services,
+  matterAgreements,
+  pausalPackages,
+  radarItems,
   type AppUserRow,
   type AppRole,
   type Matter,
@@ -27,6 +30,14 @@ import {
   type Service,
   type InsertService,
   type UpdateService,
+  type MatterAgreement,
+  type InsertMatterAgreement,
+  type PausalPackage,
+  type InsertPausalPackage,
+  type UpdatePausalPackage,
+  type PracticeArea,
+  type RadarItem,
+  type InsertRadarItem,
 } from "@shared/schema";
 import { config } from "./config";
 import { getDb } from "./db";
@@ -78,6 +89,10 @@ export interface MatterFilter {
 export interface ClientFilter {
   status?: ClientStatus;
 }
+export interface RadarFilter {
+  area?: PracticeArea;
+  sinceDays?: number;
+}
 
 export interface IStorage {
   // Users
@@ -126,6 +141,23 @@ export interface IStorage {
   createService(s: InsertService): Promise<Service>;
   updateService(id: string, patch: UpdateService): Promise<Service | undefined>;
   deleteService(id: string): Promise<boolean>;
+
+  // Matter agreements (Način dogovora — history)
+  listMatterAgreements(matterId: string): Promise<MatterAgreement[]>;
+  createMatterAgreement(a: InsertMatterAgreement): Promise<MatterAgreement>;
+  deleteMatterAgreement(id: string): Promise<boolean>;
+
+  // Pavšal packages (Nastavitve)
+  listPausalPackages(): Promise<PausalPackage[]>;
+  getPausalPackageByCode(code: string): Promise<PausalPackage | undefined>;
+  createPausalPackage(p: InsertPausalPackage): Promise<PausalPackage>;
+  updatePausalPackage(id: string, patch: UpdatePausalPackage): Promise<PausalPackage | undefined>;
+  deletePausalPackage(id: string): Promise<boolean>;
+
+  // Radar items (Zakonodajni radar)
+  listRadarItems(opts?: RadarFilter): Promise<RadarItem[]>;
+  getRadarItemByDedupKey(key: string): Promise<RadarItem | undefined>;
+  createRadarItem(i: InsertRadarItem): Promise<RadarItem>;
 }
 
 // ---------------------------------------------------------------------------
@@ -140,6 +172,9 @@ export class MemStorage implements IStorage {
   private costs = new Map<string, Cost>();
   private clients = new Map<string, Client>();
   private services = new Map<string, Service>();
+  private agreements = new Map<string, MatterAgreement>();
+  private pausalPackages = new Map<string, PausalPackage>();
+  private radar = new Map<string, RadarItem>();
 
   // --- Users ---
   async getUserById(id: string) {
@@ -213,6 +248,11 @@ export class MemStorage implements IStorage {
       hourlyRate: numStr(m.hourlyRate),
       flatFee: numStr(m.flatFee),
       status: m.status,
+      waitingReason: m.waitingReason ?? null,
+      waitingNote: m.waitingNote ?? null,
+      pausalPackageCode: m.pausalPackageCode ?? null,
+      includedHours: numStr(m.includedHours),
+      reducedRate: numStr(m.reducedRate),
       openedAt: dateStr(m.openedAt),
       assignedTo: m.assignedTo ?? null,
       notes: m.notes ?? null,
@@ -236,6 +276,11 @@ export class MemStorage implements IStorage {
       ...("hourlyRate" in patch ? { hourlyRate: numStr(patch.hourlyRate) } : {}),
       ...("flatFee" in patch ? { flatFee: numStr(patch.flatFee) } : {}),
       ...("status" in patch && patch.status !== undefined ? { status: patch.status } : {}),
+      ...("waitingReason" in patch ? { waitingReason: patch.waitingReason ?? null } : {}),
+      ...("waitingNote" in patch ? { waitingNote: patch.waitingNote ?? null } : {}),
+      ...("pausalPackageCode" in patch ? { pausalPackageCode: patch.pausalPackageCode ?? null } : {}),
+      ...("includedHours" in patch ? { includedHours: numStr(patch.includedHours) } : {}),
+      ...("reducedRate" in patch ? { reducedRate: numStr(patch.reducedRate) } : {}),
       ...("openedAt" in patch ? { openedAt: dateStr(patch.openedAt) } : {}),
       ...("assignedTo" in patch ? { assignedTo: patch.assignedTo ?? null } : {}),
       ...("notes" in patch ? { notes: patch.notes ?? null } : {}),
@@ -249,6 +294,7 @@ export class MemStorage implements IStorage {
     for (const [tid, t] of this.time) if (t.matterId === id) this.time.delete(tid);
     for (const [did, d] of this.deadlines) if (d.matterId === id) this.deadlines.delete(did);
     for (const [cid, c] of this.costs) if (c.matterId === id) this.costs.delete(cid);
+    for (const [aid, a] of this.agreements) if (a.matterId === id) this.agreements.delete(aid);
     return this.matters.delete(id);
   }
 
@@ -447,6 +493,100 @@ export class MemStorage implements IStorage {
   async deleteService(id: string) {
     return this.services.delete(id);
   }
+
+  // --- Matter agreements (Način dogovora) ---
+  async listMatterAgreements(matterId: string) {
+    return [...this.agreements.values()]
+      .filter((a) => a.matterId === matterId)
+      .sort((a, b) => +b.createdAt - +a.createdAt);
+  }
+  async createMatterAgreement(a: InsertMatterAgreement) {
+    const row: MatterAgreement = {
+      id: randomUUID(),
+      matterId: a.matterId,
+      agreementType: a.agreementType,
+      documentNumber: a.documentNumber ?? null,
+      validFrom: dateStr(a.validFrom),
+      validTo: dateStr(a.validTo),
+      note: a.note ?? null,
+      createdAt: new Date(),
+    };
+    this.agreements.set(row.id, row);
+    return row;
+  }
+  async deleteMatterAgreement(id: string) {
+    return this.agreements.delete(id);
+  }
+
+  // --- Pavšal packages ---
+  async listPausalPackages() {
+    return [...this.pausalPackages.values()].sort((a, b) => a.code.localeCompare(b.code, "sl"));
+  }
+  async getPausalPackageByCode(code: string) {
+    const lc = code.toLowerCase();
+    return [...this.pausalPackages.values()].find((p) => p.code.toLowerCase() === lc);
+  }
+  async createPausalPackage(p: InsertPausalPackage) {
+    const now = new Date();
+    const row: PausalPackage = {
+      id: randomUUID(),
+      code: p.code,
+      name: p.name,
+      includedHours: numStr(p.includedHours)!,
+      reducedRate: numStr(p.reducedRate),
+      createdAt: now,
+      updatedAt: now,
+    };
+    this.pausalPackages.set(row.id, row);
+    return row;
+  }
+  async updatePausalPackage(id: string, patch: UpdatePausalPackage) {
+    const cur = this.pausalPackages.get(id);
+    if (!cur) return undefined;
+    const next: PausalPackage = {
+      ...cur,
+      ...("code" in patch && patch.code !== undefined ? { code: patch.code } : {}),
+      ...("name" in patch && patch.name !== undefined ? { name: patch.name } : {}),
+      ...("includedHours" in patch && patch.includedHours !== undefined ? { includedHours: numStr(patch.includedHours)! } : {}),
+      ...("reducedRate" in patch ? { reducedRate: numStr(patch.reducedRate) } : {}),
+      updatedAt: new Date(),
+    };
+    this.pausalPackages.set(id, next);
+    return next;
+  }
+  async deletePausalPackage(id: string) {
+    return this.pausalPackages.delete(id);
+  }
+
+  // --- Radar items ---
+  async listRadarItems(opts?: RadarFilter) {
+    let rows = [...this.radar.values()];
+    if (opts?.area) rows = rows.filter((r) => r.area === opts.area);
+    if (opts?.sinceDays !== undefined) {
+      const cutoff = new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString().slice(0, 10);
+      rows = rows.filter((r) => (r.publishedAt ?? dateStr(r.createdAt)!) >= cutoff);
+    }
+    const key = (r: RadarItem) => r.publishedAt ?? dateStr(r.createdAt)!;
+    return rows.sort((a, b) => (key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : +b.createdAt - +a.createdAt));
+  }
+  async getRadarItemByDedupKey(key: string) {
+    return [...this.radar.values()].find((r) => r.dedupKey === key);
+  }
+  async createRadarItem(i: InsertRadarItem) {
+    const row: RadarItem = {
+      id: randomUUID(),
+      dedupKey: i.dedupKey,
+      area: i.area,
+      title: i.title,
+      source: i.source,
+      url: i.url ?? null,
+      summary: i.summary ?? null,
+      publishedAt: dateStr(i.publishedAt),
+      createdAt: new Date(),
+    };
+    this.radar.set(row.id, row);
+    return row;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -536,6 +676,11 @@ export class DbStorage implements IStorage {
         hourlyRate: numStr(m.hourlyRate),
         flatFee: numStr(m.flatFee),
         status: m.status,
+        waitingReason: m.waitingReason ?? null,
+        waitingNote: m.waitingNote ?? null,
+        pausalPackageCode: m.pausalPackageCode ?? null,
+        includedHours: numStr(m.includedHours),
+        reducedRate: numStr(m.reducedRate),
         openedAt: dateStr(m.openedAt),
         assignedTo: m.assignedTo ?? null,
         notes: m.notes ?? null,
@@ -554,6 +699,11 @@ export class DbStorage implements IStorage {
     if ("hourlyRate" in patch) set.hourlyRate = numStr(patch.hourlyRate);
     if ("flatFee" in patch) set.flatFee = numStr(patch.flatFee);
     if (patch.status !== undefined) set.status = patch.status;
+    if ("waitingReason" in patch) set.waitingReason = patch.waitingReason ?? null;
+    if ("waitingNote" in patch) set.waitingNote = patch.waitingNote ?? null;
+    if ("pausalPackageCode" in patch) set.pausalPackageCode = patch.pausalPackageCode ?? null;
+    if ("includedHours" in patch) set.includedHours = numStr(patch.includedHours);
+    if ("reducedRate" in patch) set.reducedRate = numStr(patch.reducedRate);
     if ("openedAt" in patch) set.openedAt = dateStr(patch.openedAt);
     if ("assignedTo" in patch) set.assignedTo = patch.assignedTo ?? null;
     if ("notes" in patch) set.notes = patch.notes ?? null;
@@ -564,6 +714,7 @@ export class DbStorage implements IStorage {
     await this.db.delete(timeEntries).where(eq(timeEntries.matterId, id));
     await this.db.delete(deadlines).where(eq(deadlines.matterId, id));
     await this.db.delete(costs).where(eq(costs.matterId, id));
+    await this.db.delete(matterAgreements).where(eq(matterAgreements.matterId, id));
     const res = await this.db.delete(matters).where(eq(matters.id, id)).returning();
     return res.length > 0;
   }
@@ -758,6 +909,105 @@ export class DbStorage implements IStorage {
   async deleteService(id: string) {
     const res = await this.db.delete(services).where(eq(services.id, id)).returning();
     return res.length > 0;
+  }
+
+  // --- Matter agreements (Način dogovora) ---
+  async listMatterAgreements(matterId: string) {
+    return this.db
+      .select()
+      .from(matterAgreements)
+      .where(eq(matterAgreements.matterId, matterId))
+      .orderBy(desc(matterAgreements.createdAt));
+  }
+  async createMatterAgreement(a: InsertMatterAgreement) {
+    const [row] = await this.db
+      .insert(matterAgreements)
+      .values({
+        matterId: a.matterId,
+        agreementType: a.agreementType,
+        documentNumber: a.documentNumber ?? null,
+        validFrom: dateStr(a.validFrom),
+        validTo: dateStr(a.validTo),
+        note: a.note ?? null,
+      })
+      .returning();
+    return row;
+  }
+  async deleteMatterAgreement(id: string) {
+    const res = await this.db.delete(matterAgreements).where(eq(matterAgreements.id, id)).returning();
+    return res.length > 0;
+  }
+
+  // --- Pavšal packages ---
+  async listPausalPackages() {
+    return this.db.select().from(pausalPackages).orderBy(pausalPackages.code);
+  }
+  async getPausalPackageByCode(code: string) {
+    const [row] = await this.db
+      .select()
+      .from(pausalPackages)
+      .where(sql`lower(${pausalPackages.code}) = lower(${code})`);
+    return row;
+  }
+  async createPausalPackage(p: InsertPausalPackage) {
+    const [row] = await this.db
+      .insert(pausalPackages)
+      .values({
+        code: p.code,
+        name: p.name,
+        includedHours: numStr(p.includedHours)!,
+        reducedRate: numStr(p.reducedRate),
+      })
+      .returning();
+    return row;
+  }
+  async updatePausalPackage(id: string, patch: UpdatePausalPackage) {
+    const set: Record<string, unknown> = { updatedAt: new Date() };
+    if (patch.code !== undefined) set.code = patch.code;
+    if (patch.name !== undefined) set.name = patch.name;
+    if (patch.includedHours !== undefined) set.includedHours = numStr(patch.includedHours);
+    if ("reducedRate" in patch) set.reducedRate = numStr(patch.reducedRate);
+    const [row] = await this.db.update(pausalPackages).set(set).where(eq(pausalPackages.id, id)).returning();
+    return row;
+  }
+  async deletePausalPackage(id: string) {
+    const res = await this.db.delete(pausalPackages).where(eq(pausalPackages.id, id)).returning();
+    return res.length > 0;
+  }
+
+  // --- Radar items ---
+  async listRadarItems(opts?: RadarFilter) {
+    const conds: SQL[] = [];
+    if (opts?.area) conds.push(eq(radarItems.area, opts.area));
+    if (opts?.sinceDays !== undefined) {
+      const cutoff = new Date(Date.now() - opts.sinceDays * 86_400_000).toISOString().slice(0, 10);
+      // Fall back to created_at when published_at is null.
+      conds.push(sql`COALESCE(${radarItems.publishedAt}, ${radarItems.createdAt}::date) >= ${cutoff}`);
+    }
+    const base = this.db
+      .select()
+      .from(radarItems)
+      .orderBy(sql`COALESCE(${radarItems.publishedAt}, ${radarItems.createdAt}::date) DESC`, desc(radarItems.createdAt));
+    return this.rows<RadarItem>(base, conds);
+  }
+  async getRadarItemByDedupKey(key: string) {
+    const [row] = await this.db.select().from(radarItems).where(eq(radarItems.dedupKey, key));
+    return row;
+  }
+  async createRadarItem(i: InsertRadarItem) {
+    const [row] = await this.db
+      .insert(radarItems)
+      .values({
+        dedupKey: i.dedupKey,
+        area: i.area,
+        title: i.title,
+        source: i.source,
+        url: i.url ?? null,
+        summary: i.summary ?? null,
+        publishedAt: dateStr(i.publishedAt),
+      })
+      .returning();
+    return row;
   }
 }
 

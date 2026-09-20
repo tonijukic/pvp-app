@@ -6,6 +6,7 @@ const NAV = [
   { href: "/", label: "Nadzorna plošča" },
   { href: "/zadeve", label: "Naloge" },
   { href: "/roki", label: "Roki" },
+  { href: "/radar", label: "Radar" },
   { href: "/ure", label: "Ure" },
 ];
 

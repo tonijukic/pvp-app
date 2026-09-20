@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchOverview } from "../lib/api";
-import { euro, hoursFmt, daysLeft, AREA_LABELS, STATUS_LABELS } from "../lib/format";
+import { euro, hoursFmt, daysLeft, AREA_LABELS, STATUS_LABELS, WAITING_REASON_LABELS } from "../lib/format";
 import { useTeam } from "../lib/team";
 import { Assignee } from "../components/Assignee";
 
@@ -15,7 +15,7 @@ export function Overview() {
 
   return (
     <div>
-      <h1 className="mb-4 text-xl font-semibold text-[#0D332B]">Nadzorna plošča</h1>
+      <h1 className="mb-4 text-xl font-semibold text-[#0D332B]">Pregled</h1>
       <div className="grid gap-3 sm:grid-cols-2">
         {data.map((o) => (
           <Link
@@ -35,6 +35,12 @@ export function Overview() {
             <div className="mt-2">
               <Assignee name={nameOf(o.matter.assignedTo)} size="xs" />
             </div>
+            {o.matter.status === "caka" && o.matter.waitingReason && (
+              <div className="mt-1 text-xs text-amber-700">
+                {WAITING_REASON_LABELS[o.matter.waitingReason]}
+                {o.matter.waitingNote ? ` — ${o.matter.waitingNote}` : ""}
+              </div>
+            )}
             <div className="mt-2 flex flex-wrap gap-x-5 gap-y-1 text-sm">
               <span className="text-neutral-500">{AREA_LABELS[o.matter.area]}</span>
               <span>{hoursFmt(o.hoursTotal)}</span>

@@ -12,6 +12,12 @@ import type {
   Service,
   InsertService,
   UpdateService,
+  MatterAgreement,
+  InsertMatterAgreement,
+  PausalPackage,
+  InsertPausalPackage,
+  UpdatePausalPackage,
+  RadarItem,
 } from "@shared/schema";
 
 export interface Me {
@@ -85,6 +91,14 @@ export const updateService = (id: string, body: UpdateService) =>
   req<Service>("PATCH", `/api/services/${id}`, body);
 export const deleteService = (id: string) => req<{ deleted: boolean }>("DELETE", `/api/services/${id}`);
 
+// --- pavšal packages (Nastavitve) ---
+export const fetchPackages = () => req<PausalPackage[]>("GET", "/api/packages");
+export const createPackage = (body: Partial<InsertPausalPackage>) =>
+  req<PausalPackage>("POST", "/api/packages", body);
+export const updatePackage = (id: string, body: UpdatePausalPackage) =>
+  req<PausalPackage>("PATCH", `/api/packages/${id}`, body);
+export const deletePackage = (id: string) => req<{ deleted: boolean }>("DELETE", `/api/packages/${id}`);
+
 // --- team billing (obračun ekipe) — admin ---
 export interface TeamBillingRow {
   username: string;
@@ -134,6 +148,18 @@ export const fetchCosts = (matterId: string) => req<Cost[]>("GET", `/api/matters
 export const addCost = (matterId: string, body: { date: string; description: string; amount: number }) =>
   req<Cost>("POST", `/api/matters/${matterId}/costs`, body);
 
+// --- agreements (Način dogovora — history) ---
+export const fetchAgreements = (matterId: string) =>
+  req<MatterAgreement[]>("GET", `/api/matters/${matterId}/agreements`);
+export const addAgreement = (matterId: string, body: Partial<InsertMatterAgreement>) =>
+  req<MatterAgreement>("POST", `/api/matters/${matterId}/agreements`, body);
+export const deleteAgreement = (aid: string) =>
+  req<{ deleted: boolean }>("DELETE", `/api/agreements/${aid}`);
+
+// --- client mail draft (osnutek maila stranki) — admin ---
+export const runClientMail = (matterId: string, dry = true) =>
+  req<Record<string, unknown>>("POST", `/api/matters/${matterId}/client-mail?dry=${dry ? 1 : 0}`);
+
 // --- admin: users ---
 export const fetchUsers = () => req<SafeUser[]>("GET", "/api/users");
 export const createUser = (body: {
@@ -163,6 +189,12 @@ export const runImport = (body: {
   zadeve: Record<string, string>[];
   roki: Record<string, string>[];
 }) => req<ImportResult>("POST", "/api/import", body);
+
+// --- radar (Zakonodajni radar) ---
+export const fetchRadar = (area?: string) =>
+  req<RadarItem[]>("GET", `/api/radar${area ? `?area=${area}` : ""}`);
+export const runRadarJob = (dry = true) =>
+  req<Record<string, unknown>>("POST", `/api/jobs/radar/run?dry=${dry ? 1 : 0}`);
 
 // --- admin: jobs ---
 export const runJob = (which: "reminders" | "summary", dry = true, month?: string) =>

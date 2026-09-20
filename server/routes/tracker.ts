@@ -4,6 +4,8 @@ import { storage } from "../storage";
 import { config } from "../config";
 import { computeOverview } from "../overview";
 import { requireAdmin } from "../middleware/requireRole";
+import { deliver } from "../mail/gmail";
+import { renderClientMatterMail } from "../mail/templates";
 import {
   insertMatterSchema,
   updateMatterSchema,
@@ -11,6 +13,7 @@ import {
   insertDeadlineSchema,
   updateDeadlineSchema,
   insertCostSchema,
+  insertMatterAgreementSchema,
 } from "@shared/schema";
 
 export const trackerRouter = Router();
@@ -249,4 +252,46 @@ trackerRouter.post("/matters/:id/costs", async (req, res) => {
 
 trackerRouter.delete("/costs/:id", requireAdmin, async (req, res) => {
   ok(res, { deleted: await storage.deleteCost(req.params.id) });
+});
+
+// --- Agreements (Način dogovora — history, nested under a matter) ------------
+
+trackerRouter.get("/matters/:id/agreements", async (req, res) => {
+  const { m, allowed } = await loadAccessibleMatter(req, req.params.id);
+  if (!m) return fail(res, 404, "Zadeva ne obstaja");
+  if (!allowed) return fail(res, 403, "Ni pravice");
+  ok(res, await storage.listMatterAgreements(m.id));
+});
+
+trackerRouter.post("/matters/:id/agreements", requireAdmin, async (req, res) => {
+  const m = await storage.getMatter(req.params.id);
+  if (!m) return fail(res, 404, "Zadeva ne obstaja");
+  const data = parse(insertMatterAgreementSchema, { ...req.body, matterId: m.id }, res);
+  if (!data) return;
+  ok(res, await storage.createMatterAgreement(data));
+});
+
+trackerRouter.delete("/agreements/:aid", requireAdmin, async (req, res) => {
+  ok(res, { deleted: await storage.deleteMatterAgreement(req.params.aid) });
+});
+
+// --- Client mail draft (osnutek maila stranki) — admin only -----------------
+// Gathers the matter + time + costs, renders a block-based draft, and (per the
+// autosend killswitch) writes a preview + best-effort Gmail draft.
+
+trackerRouter.post("/matters/:id/client-mail", requireAdmin, async (req, res) => {
+  const m = await storage.getMatter(req.params.id);
+  if (!m) return fail(res, 404, "Zadeva ne obstaja");
+  const [time, costs] = await Promise.all([
+    storage.listTimeEntries({ matterId: m.id }),
+    storage.listCosts({ matterId: m.id }),
+  ]);
+  const mail = renderClientMatterMail({ matter: m, time, costs });
+  const dry = req.query.dry === "1" || req.query.dry === "true";
+  const autosend = config.autosend.reminders && !dry;
+  const delivery = await deliver(
+    { ...mail, to: [config.mail.digestTo], cc: config.mail.digestCc ? [config.mail.digestCc] : undefined },
+    { autosend, account: config.mail.account, previewName: `client-mail-${m.id}` },
+  );
+  ok(res, { autosend, delivery, subject: mail.subject });
 });

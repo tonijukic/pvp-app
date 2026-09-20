@@ -32,6 +32,12 @@ export async function computeOverview(
     let billableValue: number | null = null;
     if (matter.billingType === "pausal") {
       billableValue = matter.flatFee !== null ? Number(matter.flatFee) : null;
+    } else if (matter.billingType === "pausal_ure") {
+      // pavšal osnova (flatFee) + ure nad kvoto × znižana postavka
+      const base = matter.flatFee !== null ? Number(matter.flatFee) : 0;
+      const included = matter.includedHours !== null ? Number(matter.includedHours) : 0;
+      const reduced = matter.reducedRate !== null ? Number(matter.reducedRate) : 0;
+      billableValue = base + Math.max(0, hoursTotal - included) * reduced;
     } else if (matter.hourlyRate !== null) {
       billableValue = hoursTotal * Number(matter.hourlyRate);
     }

@@ -39,7 +39,8 @@ export async function runSummary(opts: { month?: string; dryRun?: boolean } = {}
     ]);
     const hours = time.reduce((s, t) => s + Number(t.hours), 0);
     const costsTotal = costs.reduce((s, c) => s + Number(c.amount), 0);
-    if (hours === 0 && costsTotal === 0 && matter.billingType !== "pausal") continue;
+    if (hours === 0 && costsTotal === 0 && matter.billingType !== "pausal" && matter.billingType !== "pausal_ure")
+      continue;
 
     // Hours broken down per collaborator.
     const perUser = new Map<string, number>();
@@ -53,7 +54,13 @@ export async function runSummary(opts: { month?: string; dryRun?: boolean } = {}
 
     let billable: number | null = null;
     if (matter.billingType === "pausal") billable = matter.flatFee !== null ? Number(matter.flatFee) : null;
-    else if (matter.hourlyRate !== null) billable = hours * Number(matter.hourlyRate);
+    else if (matter.billingType === "pausal_ure") {
+      // pavšal osnova (flatFee) + ure nad kvoto × znižana postavka
+      const base = matter.flatFee !== null ? Number(matter.flatFee) : 0;
+      const included = matter.includedHours !== null ? Number(matter.includedHours) : 0;
+      const reduced = matter.reducedRate !== null ? Number(matter.reducedRate) : 0;
+      billable = base + Math.max(0, hours - included) * reduced;
+    } else if (matter.hourlyRate !== null) billable = hours * Number(matter.hourlyRate);
 
     rows.push({
       matter,

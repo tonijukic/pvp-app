@@ -4,14 +4,15 @@ import { Link } from "wouter";
 import {
   fetchMatter, fetchTime, addTime, fetchDeadlines, addDeadline, setDeadlineStatus,
   fetchCosts, addCost, updateMatter,
+  fetchAgreements, addAgreement, deleteAgreement, runClientMail,
 } from "../lib/api";
 import type { Me } from "../lib/api";
-import { euro, hoursFmt, todayIso, AREA_LABELS, BILLING_LABELS, STATUS_LABELS, SEVERITY_LABELS, DEADLINE_KIND_LABELS, DEADLINE_RECURRENCE_LABELS, daysLeft } from "../lib/format";
-import { DEADLINE_KINDS, DEADLINE_RECURRENCE, MATTER_STATUSES } from "@shared/schema";
+import { euro, hoursFmt, todayIso, AREA_LABELS, BILLING_LABELS, STATUS_LABELS, WAITING_REASON_LABELS, AGREEMENT_TYPE_LABELS, SEVERITY_LABELS, DEADLINE_KIND_LABELS, DEADLINE_RECURRENCE_LABELS, daysLeft } from "../lib/format";
+import { DEADLINE_KINDS, DEADLINE_RECURRENCE, MATTER_STATUSES, WAITING_REASONS, AGREEMENT_TYPES } from "@shared/schema";
 import { useTeam } from "../lib/team";
 import { Assignee } from "../components/Assignee";
 
-type Tab = "ure" | "roki" | "stroski";
+type Tab = "ure" | "roki" | "stroski" | "dogovor";
 const input = "w-full rounded-lg border border-neutral-300 px-3 py-2 text-sm";
 
 export function MatterDetail({ id, me }: { id: string; me: Me }) {
@@ -26,6 +27,14 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
   };
   const reassign = useMutation({ mutationFn: (username: string) => updateMatter(id, { assignedTo: username || null }), onSuccess: inval });
   const setStatus = useMutation({ mutationFn: (status: string) => updateMatter(id, { status: status as never }), onSuccess: inval });
+  const setWaitingReason = useMutation({ mutationFn: (reason: string) => updateMatter(id, { waitingReason: (reason || null) as never }), onSuccess: inval });
+  const setWaitingNote = useMutation({ mutationFn: (note: string) => updateMatter(id, { waitingNote: note || null }), onSuccess: inval });
+  const [clientMailMsg, setClientMailMsg] = useState<string | null>(null);
+  const clientMail = useMutation({
+    mutationFn: () => runClientMail(id, true),
+    onSuccess: () => setClientMailMsg("Osnutek pripravljen (draft/predogled). Preveri v Gmailu / .previews."),
+    onError: (e) => setClientMailMsg((e as Error).message),
+  });
 
   if (isLoading) return <p className="text-neutral-500">Nalagam…</p>;
   if (error) return <p className="text-red-600">{(error as Error).message}</p>;
@@ -70,16 +79,60 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
             <span className="rounded-full bg-[#0D332B]/5 px-2 py-0.5 text-xs text-[#0D332B]">{STATUS_LABELS[matter.status]}</span>
           )}
         </div>
+
+        {matter.status === "caka" && (
+          <div className="mt-2 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm">
+            {me.role === "admin" ? (
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-neutral-600">Razlog čakanja:</span>
+                <select
+                  className="rounded-lg border border-neutral-300 px-2 py-1 text-sm"
+                  value={matter.waitingReason ?? ""}
+                  onChange={(e) => setWaitingReason.mutate(e.target.value)}
+                >
+                  <option value="">— izberi razlog —</option>
+                  {WAITING_REASONS.map((r) => <option key={r} value={r}>{WAITING_REASON_LABELS[r]}</option>)}
+                </select>
+                {matter.waitingReason === "drugo" && (
+                  <input
+                    className="min-w-[240px] flex-1 rounded-lg border border-neutral-300 px-2 py-1 text-sm"
+                    placeholder="Opis (drugo)"
+                    defaultValue={matter.waitingNote ?? ""}
+                    onBlur={(e) => setWaitingNote.mutate(e.target.value)}
+                  />
+                )}
+              </div>
+            ) : (
+              <div className="text-amber-800">
+                {matter.waitingReason ? WAITING_REASON_LABELS[matter.waitingReason] : "Čaka"}
+                {matter.waitingNote ? ` — ${matter.waitingNote}` : ""}
+              </div>
+            )}
+          </div>
+        )}
+
+        {me.role === "admin" && (matter.status === "za_pregled" || matter.status === "posredovano") && (
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button
+              onClick={() => { setClientMailMsg(null); clientMail.mutate(); }}
+              disabled={clientMail.isPending}
+              className="rounded-lg border border-[#C9A34A] px-3 py-1.5 text-sm font-medium text-[#0D332B] disabled:opacity-40"
+            >
+              {clientMail.isPending ? "Pripravljam…" : "Pripravi osnutek maila stranki"}
+            </button>
+            {clientMailMsg && <span className="text-sm text-neutral-600">{clientMailMsg}</span>}
+          </div>
+        )}
       </div>
 
       <div className="mb-4 flex gap-1 border-b border-neutral-200">
-        {(["ure", "roki", "stroski"] as Tab[]).map((t) => (
+        {(["ure", "roki", "stroski", "dogovor"] as Tab[]).map((t) => (
           <button
             key={t}
             onClick={() => setTab(t)}
             className={`px-3 py-2 text-sm ${tab === t ? "border-b-2 border-[#C9A34A] font-semibold text-[#0D332B]" : "text-neutral-500"}`}
           >
-            {t === "ure" ? "Ure" : t === "roki" ? "Roki" : "Stroški"}
+            {t === "ure" ? "Ure" : t === "roki" ? "Roki" : t === "stroski" ? "Stroški" : "Način dogovora"}
           </button>
         ))}
       </div>
@@ -87,6 +140,7 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
       {tab === "ure" && <TimeTab id={id} />}
       {tab === "roki" && <DeadlineTab id={id} />}
       {tab === "stroski" && <CostTab id={id} />}
+      {tab === "dogovor" && <AgreementTab id={id} isAdmin={me.role === "admin"} />}
     </div>
   );
 }
@@ -208,6 +262,58 @@ function CostTab({ id }: { id: string }) {
         {!data?.length && <div className="px-4 py-3 text-sm text-neutral-400">Ni stroškov.</div>}
       </div>
       <div className="mt-2 text-right text-sm">Skupaj: <b>{euro(total)}</b></div>
+    </div>
+  );
+}
+
+function AgreementTab({ id, isAdmin }: { id: string; isAdmin: boolean }) {
+  const qc = useQueryClient();
+  const { data } = useQuery({ queryKey: ["agreements", id], queryFn: () => fetchAgreements(id) });
+  const inval = () => qc.invalidateQueries({ queryKey: ["agreements", id] });
+  const [agreementType, setAgreementType] = useState("narocilnica");
+  const [documentNumber, setDocumentNumber] = useState("");
+  const [validFrom, setValidFrom] = useState("");
+  const [validTo, setValidTo] = useState("");
+  const [note, setNote] = useState("");
+  const add = useMutation({
+    mutationFn: () => addAgreement(id, {
+      agreementType: agreementType as never,
+      documentNumber: documentNumber || undefined,
+      validFrom: (validFrom || undefined) as never,
+      validTo: (validTo || undefined) as never,
+      note: note || undefined,
+    }),
+    onSuccess: () => { setDocumentNumber(""); setValidFrom(""); setValidTo(""); setNote(""); inval(); },
+  });
+  const del = useMutation({ mutationFn: (aid: string) => deleteAgreement(aid), onSuccess: inval });
+  return (
+    <div>
+      {isAdmin && (
+        <form onSubmit={(e) => { e.preventDefault(); add.mutate(); }} className="mb-4 grid gap-2 rounded-xl border border-neutral-200 bg-white p-3 sm:grid-cols-[140px_1fr_130px_130px_auto]">
+          <select className={input} value={agreementType} onChange={(e) => setAgreementType(e.target.value)}>
+            {AGREEMENT_TYPES.map((t) => <option key={t} value={t}>{AGREEMENT_TYPE_LABELS[t]}</option>)}
+          </select>
+          <input className={input} placeholder="Št. dokumenta (neobvezno)" value={documentNumber} onChange={(e) => setDocumentNumber(e.target.value)} />
+          <input type="date" className={input} title="velja od" value={validFrom} onChange={(e) => setValidFrom(e.target.value)} />
+          <input type="date" className={input} title="velja do" value={validTo} onChange={(e) => setValidTo(e.target.value)} />
+          <button className="rounded-lg bg-[#C9A34A] px-3 py-2 text-sm font-semibold text-[#0D332B]">Dodaj</button>
+          <input className={`${input} sm:col-span-5`} placeholder="Opomba (neobvezno)" value={note} onChange={(e) => setNote(e.target.value)} />
+        </form>
+      )}
+      <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
+        {(data ?? []).map((a) => (
+          <div key={a.id} className="flex items-center justify-between border-b border-neutral-100 px-4 py-2 text-sm last:border-0">
+            <span>
+              <b>{AGREEMENT_TYPE_LABELS[a.agreementType]}</b>
+              {a.documentNumber ? ` · št. ${a.documentNumber}` : ""}
+              {a.validFrom || a.validTo ? ` · ${a.validFrom ?? "…"} – ${a.validTo ?? "…"}` : ""}
+              {a.note ? <span className="block text-neutral-500">{a.note}</span> : null}
+            </span>
+            {isAdmin && <button onClick={() => del.mutate(a.id)} className="text-xs text-red-600">izbriši</button>}
+          </div>
+        ))}
+        {!data?.length && <div className="px-4 py-3 text-sm text-neutral-400">Ni zapisov o dogovoru.</div>}
+      </div>
     </div>
   );
 }

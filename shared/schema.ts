@@ -47,6 +47,25 @@ export const MATTER_STATUSES = [
 ] as const;
 export type MatterStatus = (typeof MATTER_STATUSES)[number];
 
+/** Structured reason a matter is in status "caka" (who/what it waits on). */
+export const WAITING_REASONS = [
+  "stranka_odgovor",
+  "stranka_gradivo",
+  "stranka_placilo",
+  "nasprotna_stranka",
+  "organ_odlocba",
+  "sodisce",
+  "tretja_oseba",
+  "potek_roka",
+  "interni_pregled",
+  "drugo",
+] as const;
+export type WaitingReason = (typeof WAITING_REASONS)[number];
+
+/** How an engagement was agreed, recorded per matter (with history). */
+export const AGREEMENT_TYPES = ["narocilnica", "pogodba", "ustno", "mail"] as const;
+export type AgreementType = (typeof AGREEMENT_TYPES)[number];
+
 /** Cenik units. */
 export const SERVICE_UNITS = ["ura", "mesec", "kos"] as const;
 export type ServiceUnit = (typeof SERVICE_UNITS)[number];
@@ -117,6 +136,12 @@ export const matters = pgTable("matters", {
   hourlyRate: numeric("hourly_rate", { precision: 10, scale: 2 }),
   flatFee: numeric("flat_fee", { precision: 10, scale: 2 }),
   status: text("status").$type<MatterStatus>().notNull().default("odprta"),
+  waitingReason: text("waiting_reason").$type<WaitingReason>(), // zakaj/na koga se čaka (ko je status "caka")
+  waitingNote: text("waiting_note"), // prosti opis, ko je razlog "drugo"
+  // Pavšal-ure snapshot (kopira se ob nastavitvi, kasnejši uredniki paketa ne vplivajo na obstoječe naloge)
+  pausalPackageCode: text("pausal_package_code"),
+  includedHours: numeric("included_hours", { precision: 6, scale: 2 }),
+  reducedRate: numeric("reduced_rate", { precision: 10, scale: 2 }),
   openedAt: date("opened_at"),
   assignedTo: varchar("assigned_to"),
   notes: text("notes"),
@@ -132,6 +157,11 @@ export const insertMatterSchema = createInsertSchema(matters, {
   area: () => z.enum(PRACTICE_AREAS),
   billingType: () => z.enum(BILLING_TYPES),
   status: () => z.enum(MATTER_STATUSES),
+  waitingReason: () => z.enum(WAITING_REASONS).optional(),
+  waitingNote: (s) => s.max(500).optional(),
+  pausalPackageCode: (s) => s.max(40).optional(),
+  includedHours: () => z.coerce.number().min(0).max(1000).optional(),
+  reducedRate: () => z.coerce.number().min(0).max(100000).optional(),
   hourlyRate: () => z.coerce.number().min(0).max(100000).optional(),
   flatFee: () => z.coerce.number().min(0).max(1000000).optional(),
   openedAt: () => z.coerce.date().optional(),
@@ -305,3 +335,88 @@ export const updateServiceSchema = insertServiceSchema.partial();
 export type Service = typeof services.$inferSelect;
 export type InsertService = z.infer<typeof insertServiceSchema>;
 export type UpdateService = z.infer<typeof updateServiceSchema>;
+
+// ---------------------------------------------------------------------------
+// Matter agreements (Način dogovora) — per-matter engagement basis WITH history
+// ---------------------------------------------------------------------------
+
+export const matterAgreements = pgTable("matter_agreements", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  matterId: varchar("matter_id").notNull(),
+  agreementType: text("agreement_type").$type<AgreementType>().notNull(),
+  documentNumber: text("document_number"), // št. naročilnice/pogodbe
+  validFrom: date("valid_from"),
+  validTo: date("valid_to"),
+  note: text("note"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertMatterAgreementSchema = createInsertSchema(matterAgreements, {
+  matterId: (s) => s.min(1),
+  agreementType: () => z.enum(AGREEMENT_TYPES),
+  documentNumber: (s) => s.max(120).optional(),
+  validFrom: () => z.coerce.date().optional(),
+  validTo: () => z.coerce.date().optional(),
+  note: (s) => s.max(1000).optional(),
+}).omit({ id: true, createdAt: true });
+
+export type MatterAgreement = typeof matterAgreements.$inferSelect;
+export type InsertMatterAgreement = z.infer<typeof insertMatterAgreementSchema>;
+
+// ---------------------------------------------------------------------------
+// Pavšal packages — configurable (included hours + reduced over-quota rate)
+// ---------------------------------------------------------------------------
+
+export const pausalPackages = pgTable("pausal_packages", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  code: text("code").notNull().unique(),
+  name: text("name").notNull(),
+  includedHours: numeric("included_hours", { precision: 6, scale: 2 }).notNull(),
+  reducedRate: numeric("reduced_rate", { precision: 10, scale: 2 }), // absolutna €/h nad kvoto
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+  updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertPausalPackageSchema = createInsertSchema(pausalPackages, {
+  code: (s) => s.min(1, "Kratica je obvezna").max(40),
+  name: (s) => s.min(1, "Naziv je obvezen").max(300),
+  includedHours: () => z.coerce.number().min(0).max(1000),
+  reducedRate: () => z.coerce.number().min(0).max(100000).nullable().optional(),
+}).omit({ id: true, createdAt: true, updatedAt: true });
+
+export const updatePausalPackageSchema = insertPausalPackageSchema.partial();
+
+export type PausalPackage = typeof pausalPackages.$inferSelect;
+export type InsertPausalPackage = z.infer<typeof insertPausalPackageSchema>;
+export type UpdatePausalPackage = z.infer<typeof updatePausalPackageSchema>;
+
+// ---------------------------------------------------------------------------
+// Radar items (Zakonodajni radar) — newly published/upcoming SI legislation
+// relevant to Nina's practice areas, gathered by the radar job.
+// ---------------------------------------------------------------------------
+
+export const radarItems = pgTable("radar_items", {
+  id: varchar("id").primaryKey().default(sql`gen_random_uuid()`),
+  // Stable key for dedup across runs, e.g. `${source}:${externalId or url}`.
+  dedupKey: text("dedup_key").notNull().unique(),
+  area: text("area").$type<PracticeArea>().notNull(),
+  title: text("title").notNull(),
+  source: text("source").notNull(), // "PISRS", "PISRS-API", "IP-RS", …
+  url: text("url"),
+  summary: text("summary"),
+  publishedAt: date("published_at"),
+  createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
+});
+
+export const insertRadarItemSchema = createInsertSchema(radarItems, {
+  dedupKey: (s) => s.min(1).max(500),
+  area: () => z.enum(PRACTICE_AREAS),
+  title: (s) => s.min(1).max(500),
+  source: (s) => s.min(1).max(60),
+  url: (s) => s.max(1000).optional(),
+  summary: (s) => s.max(4000).optional(),
+  publishedAt: () => z.coerce.date().optional(),
+}).omit({ id: true, createdAt: true });
+
+export type RadarItem = typeof radarItems.$inferSelect;
+export type InsertRadarItem = z.infer<typeof insertRadarItemSchema>;

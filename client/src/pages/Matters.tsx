@@ -2,8 +2,9 @@ import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link } from "wouter";
 import { fetchMatters, createMatter, fetchMe, fetchClients, fetchServices, fetchAllDeadlines } from "../lib/api";
-import { AREA_LABELS, BILLING_LABELS, STATUS_LABELS, todayIso } from "../lib/format";
-import { PRACTICE_AREAS, BILLING_TYPES } from "@shared/schema";
+import { AREA_LABELS, BILLING_LABELS, STATUS_LABELS, WAITING_REASON_LABELS, todayIso } from "../lib/format";
+import { PRACTICE_AREAS, BILLING_TYPES, WAITING_REASONS, MATTER_STATUSES } from "@shared/schema";
+import { fetchPackages } from "../lib/api";
 import { useTeam } from "../lib/team";
 import { Assignee } from "../components/Assignee";
 
@@ -83,6 +84,9 @@ export function Matters() {
               <div className="min-w-0">
                 <div className="font-medium">{m.client}</div>
                 <div className="truncate text-sm text-neutral-500">{m.title} · {AREA_LABELS[m.area]}</div>
+                {m.status === "caka" && m.waitingReason && (
+                  <div className="mt-0.5 truncate text-xs text-amber-700">{WAITING_REASON_LABELS[m.waitingReason]}{m.waitingNote ? ` — ${m.waitingNote}` : ""}</div>
+                )}
                 <div className="mt-1"><Assignee name={nameOf(m.assignedTo)} size="xs" /></div>
               </div>
               <div className="whitespace-nowrap text-right text-sm">
@@ -101,6 +105,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   const { members } = useTeam();
   const { data: clients } = useQuery({ queryKey: ["clients"], queryFn: () => fetchClients() });
   const { data: services } = useQuery({ queryKey: ["services"], queryFn: fetchServices });
+  const { data: packages } = useQuery({ queryKey: ["packages"], queryFn: fetchPackages });
   const [f, setF] = useState({
     clientId: "",
     title: "",
@@ -109,11 +114,29 @@ function CreateForm({ onDone }: { onDone: () => void }) {
     billingType: "po_urah",
     hourlyRate: "",
     flatFee: "",
+    status: "odprta",
+    waitingReason: "",
+    waitingNote: "",
+    pausalPackageCode: "",
+    includedHours: "",
+    reducedRate: "",
     openedAt: todayIso(),
     assignedTo: "",
   });
   const [err, setErr] = useState<string | null>(null);
   const set = (k: string, v: string) => setF((p) => ({ ...p, [k]: v }));
+
+  // Picking a pavšal package snapshots its included hours + reduced rate.
+  const onPackage = (code: string) => {
+    const pkg = packages?.find((p) => p.code === code);
+    if (!pkg) { set("pausalPackageCode", code); return; }
+    setF((prev) => ({
+      ...prev,
+      pausalPackageCode: code,
+      includedHours: pkg.includedHours != null ? String(pkg.includedHours) : prev.includedHours,
+      reducedRate: pkg.reducedRate != null ? String(pkg.reducedRate) : prev.reducedRate,
+    }));
+  };
 
   // Picking a service pulls its price from the cenik (PO/FO by client kind)
   // and pre-sets the billing type + rate. Everything stays editable.
@@ -132,6 +155,8 @@ function CreateForm({ onDone }: { onDone: () => void }) {
 
   const showHourly = f.billingType === "po_urah" || f.billingType === "pausal_ure";
   const showFlat = f.billingType === "pausal" || f.billingType === "pausal_ure";
+  const showPausalUre = f.billingType === "pausal_ure";
+  const showWaiting = f.status === "caka";
 
   const mut = useMutation({
     mutationFn: () => {
@@ -143,10 +168,15 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         area: f.area as never,
         serviceCode: f.serviceCode || undefined,
         billingType: f.billingType as never,
-        status: "odprta" as never, // new tasks always start "odprta"
+        status: f.status as never,
+        waitingReason: showWaiting && f.waitingReason ? (f.waitingReason as never) : undefined,
+        waitingNote: showWaiting && f.waitingReason === "drugo" && f.waitingNote ? f.waitingNote : undefined,
         openedAt: f.openedAt as never,
         hourlyRate: showHourly && f.hourlyRate ? Number(f.hourlyRate) : undefined,
         flatFee: showFlat && f.flatFee ? Number(f.flatFee) : undefined,
+        pausalPackageCode: showPausalUre && f.pausalPackageCode ? f.pausalPackageCode : undefined,
+        includedHours: showPausalUre && f.includedHours ? Number(f.includedHours) : undefined,
+        reducedRate: showPausalUre && f.reducedRate ? Number(f.reducedRate) : undefined,
         assignedTo: f.assignedTo || undefined,
       });
     },
@@ -185,12 +215,42 @@ function CreateForm({ onDone }: { onDone: () => void }) {
           {BILLING_TYPES.map((b) => <option key={b} value={b}>{BILLING_LABELS[b]}</option>)}
         </select>
       </label>
+      <label className="text-sm">Status
+        <select className={input} value={f.status} onChange={(e) => set("status", e.target.value)}>
+          {MATTER_STATUSES.map((s) => <option key={s} value={s}>{STATUS_LABELS[s]}</option>)}
+        </select>
+      </label>
+      {showWaiting && (
+        <label className="text-sm">Razlog čakanja
+          <select className={input} value={f.waitingReason} onChange={(e) => set("waitingReason", e.target.value)}>
+            <option value="">— izberi razlog —</option>
+            {WAITING_REASONS.map((r) => <option key={r} value={r}>{WAITING_REASON_LABELS[r]}</option>)}
+          </select>
+        </label>
+      )}
+      {showWaiting && f.waitingReason === "drugo" && (
+        <label className="text-sm">Opis (drugo)<input className={input} value={f.waitingNote} onChange={(e) => set("waitingNote", e.target.value)} /></label>
+      )}
       <label className="text-sm">Odprto<input type="date" className={input} value={f.openedAt} onChange={(e) => set("openedAt", e.target.value)} /></label>
       {showHourly && (
         <label className="text-sm">Urna postavka (€)<input type="number" step="0.01" className={input} value={f.hourlyRate} onChange={(e) => set("hourlyRate", e.target.value)} /></label>
       )}
       {showFlat && (
         <label className="text-sm">Pavšal (€)<input type="number" step="0.01" className={input} value={f.flatFee} onChange={(e) => set("flatFee", e.target.value)} /></label>
+      )}
+      {showPausalUre && (
+        <label className="text-sm">Pavšal paket
+          <select className={input} value={f.pausalPackageCode} onChange={(e) => onPackage(e.target.value)}>
+            <option value="">— brez / ročno —</option>
+            {(packages ?? []).map((p) => <option key={p.id} value={p.code}>{p.code} - {p.name}</option>)}
+          </select>
+        </label>
+      )}
+      {showPausalUre && (
+        <label className="text-sm">Vključene ure<input type="number" step="0.01" className={input} value={f.includedHours} onChange={(e) => set("includedHours", e.target.value)} /></label>
+      )}
+      {showPausalUre && (
+        <label className="text-sm">Znižana postavka nad kvoto (€/h)<input type="number" step="0.01" className={input} value={f.reducedRate} onChange={(e) => set("reducedRate", e.target.value)} /></label>
       )}
       <label className="text-sm">Nosilec (kdo dela na nalogi)
         <select className={input} value={f.assignedTo} onChange={(e) => set("assignedTo", e.target.value)}>
