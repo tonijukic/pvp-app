@@ -7,6 +7,14 @@ export const hoursFmt = (n: number) => `${Number(n).toFixed(2)} h`;
 
 export const todayIso = () => new Date().toISOString().slice(0, 10);
 
+/** Format an ISO date (YYYY-MM-DD) as sl-SI d. m. yyyy. Null/invalid → "". */
+export const dateFmt = (iso: string | null | undefined): string => {
+  if (!iso) return "";
+  const ms = Date.parse(iso + "T00:00:00Z");
+  if (Number.isNaN(ms)) return "";
+  return new Date(ms).toLocaleDateString("sl-SI", { day: "numeric", month: "numeric", year: "numeric" });
+};
+
 export function daysLeft(dueIso: string): number {
   const due = Date.parse(dueIso + "T00:00:00Z");
   const now = Date.parse(todayIso() + "T00:00:00Z");

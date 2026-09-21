@@ -405,6 +405,10 @@ export const radarItems = pgTable("radar_items", {
   url: text("url"),
   summary: text("summary"),
   publishedAt: date("published_at"),
+  // On-demand AI insight (generated + cached on first open of the detail page).
+  summaryTeam: text("summary_team"), // "Povzetek za ekipo" — business-tuned brief
+  newsletterText: text("newsletter_text"), // "Za obvestilnik" — publish-ready paragraph
+  aiGeneratedAt: timestamp("ai_generated_at"),
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
 
@@ -416,7 +420,7 @@ export const insertRadarItemSchema = createInsertSchema(radarItems, {
   url: (s) => s.max(1000).optional(),
   summary: (s) => s.max(4000).optional(),
   publishedAt: () => z.coerce.date().optional(),
-}).omit({ id: true, createdAt: true });
+}).omit({ id: true, createdAt: true, summaryTeam: true, newsletterText: true, aiGeneratedAt: true });
 
 export type RadarItem = typeof radarItems.$inferSelect;
 export type InsertRadarItem = z.infer<typeof insertRadarItemSchema>;

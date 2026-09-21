@@ -193,6 +193,9 @@ export const runImport = (body: {
 // --- radar (Zakonodajni radar) ---
 export const fetchRadar = (area?: string) =>
   req<RadarItem[]>("GET", `/api/radar${area ? `?area=${area}` : ""}`);
+export const fetchRadarItem = (id: string) => req<RadarItem>("GET", `/api/radar/${id}`);
+export const generateRadarInsight = (id: string) =>
+  req<RadarItem>("POST", `/api/radar/${id}/generate`);
 export const runRadarJob = (dry = true) =>
   req<Record<string, unknown>>("POST", `/api/jobs/radar/run?dry=${dry ? 1 : 0}`);
 

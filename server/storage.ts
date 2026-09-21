@@ -94,6 +94,14 @@ export interface RadarFilter {
   sinceDays?: number;
 }
 
+/** Server-set AI insight fields, cached onto a radar item after generation. */
+export interface RadarAiPatch {
+  summaryTeam: string;
+  newsletterText: string;
+  publishedAt?: string | null; // backfilled only when currently null
+  aiGeneratedAt: Date;
+}
+
 export interface IStorage {
   // Users
   getUserById(id: string): Promise<AppUserRow | undefined>;
@@ -156,8 +164,10 @@ export interface IStorage {
 
   // Radar items (Zakonodajni radar)
   listRadarItems(opts?: RadarFilter): Promise<RadarItem[]>;
+  getRadarItem(id: string): Promise<RadarItem | undefined>;
   getRadarItemByDedupKey(key: string): Promise<RadarItem | undefined>;
   createRadarItem(i: InsertRadarItem): Promise<RadarItem>;
+  setRadarItemAi(id: string, patch: RadarAiPatch): Promise<RadarItem | undefined>;
 }
 
 // ---------------------------------------------------------------------------
@@ -569,6 +579,9 @@ export class MemStorage implements IStorage {
     const key = (r: RadarItem) => r.publishedAt ?? dateStr(r.createdAt)!;
     return rows.sort((a, b) => (key(a) < key(b) ? 1 : key(a) > key(b) ? -1 : +b.createdAt - +a.createdAt));
   }
+  async getRadarItem(id: string) {
+    return this.radar.get(id);
+  }
   async getRadarItemByDedupKey(key: string) {
     return [...this.radar.values()].find((r) => r.dedupKey === key);
   }
@@ -582,10 +595,29 @@ export class MemStorage implements IStorage {
       url: i.url ?? null,
       summary: i.summary ?? null,
       publishedAt: dateStr(i.publishedAt),
+      summaryTeam: null,
+      newsletterText: null,
+      aiGeneratedAt: null,
       createdAt: new Date(),
     };
     this.radar.set(row.id, row);
     return row;
+  }
+  async setRadarItemAi(id: string, patch: RadarAiPatch) {
+    const cur = this.radar.get(id);
+    if (!cur) return undefined;
+    const next: RadarItem = {
+      ...cur,
+      summaryTeam: patch.summaryTeam,
+      newsletterText: patch.newsletterText,
+      aiGeneratedAt: patch.aiGeneratedAt,
+      // Backfill the publish date only when we don't already have one.
+      ...(cur.publishedAt === null && "publishedAt" in patch
+        ? { publishedAt: dateStr(patch.publishedAt) }
+        : {}),
+    };
+    this.radar.set(id, next);
+    return next;
   }
 }
 
@@ -990,6 +1022,10 @@ export class DbStorage implements IStorage {
       .orderBy(sql`COALESCE(${radarItems.publishedAt}, ${radarItems.createdAt}::date) DESC`, desc(radarItems.createdAt));
     return this.rows<RadarItem>(base, conds);
   }
+  async getRadarItem(id: string) {
+    const [row] = await this.db.select().from(radarItems).where(eq(radarItems.id, id));
+    return row;
+  }
   async getRadarItemByDedupKey(key: string) {
     const [row] = await this.db.select().from(radarItems).where(eq(radarItems.dedupKey, key));
     return row;
@@ -1007,6 +1043,19 @@ export class DbStorage implements IStorage {
         publishedAt: dateStr(i.publishedAt),
       })
       .returning();
+    return row;
+  }
+  async setRadarItemAi(id: string, patch: RadarAiPatch) {
+    const cur = await this.getRadarItem(id);
+    if (!cur) return undefined;
+    const set: Record<string, unknown> = {
+      summaryTeam: patch.summaryTeam,
+      newsletterText: patch.newsletterText,
+      aiGeneratedAt: patch.aiGeneratedAt,
+    };
+    // Backfill the publish date only when we don't already have one.
+    if (cur.publishedAt === null && "publishedAt" in patch) set.publishedAt = dateStr(patch.publishedAt);
+    const [row] = await this.db.update(radarItems).set(set).where(eq(radarItems.id, id)).returning();
     return row;
   }
 }

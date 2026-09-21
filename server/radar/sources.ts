@@ -51,7 +51,7 @@ export function classifyArea(text: string): PracticeArea {
 // Small fetch helper — bounded timeout, returns undefined on any failure.
 // ---------------------------------------------------------------------------
 
-async function safeFetchText(
+export async function safeFetchText(
   url: string,
   init?: RequestInit,
   timeoutMs = 12_000,

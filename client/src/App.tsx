@@ -8,6 +8,7 @@ import { Matters } from "./pages/Matters";
 import { MatterDetail } from "./pages/MatterDetail";
 import { Deadlines } from "./pages/Deadlines";
 import { Radar } from "./pages/Radar";
+import { RadarDetail } from "./pages/RadarDetail";
 import { TimeQuick } from "./pages/TimeQuick";
 import { Team } from "./pages/Team";
 import { Stranke } from "./pages/Stranke";
@@ -37,6 +38,7 @@ export default function App() {
         <Route path="/zadeve/:id">{(p) => <MatterDetail id={p.id} me={me} />}</Route>
         <Route path="/roki" component={Deadlines} />
         <Route path="/radar" component={Radar} />
+        <Route path="/radar/:id">{(p) => <RadarDetail id={p.id} />}</Route>
         <Route path="/ure" component={TimeQuick} />
         <Route path="/stranke">{me.role === "admin" ? <Stranke /> : <NotAllowed />}</Route>
         <Route path="/cenik">{me.role === "admin" ? <Cenik /> : <NotAllowed />}</Route>

@@ -1,7 +1,8 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "wouter";
 import { fetchRadar } from "../lib/api";
-import { AREA_LABELS } from "../lib/format";
+import { AREA_LABELS, dateFmt } from "../lib/format";
 import { PRACTICE_AREAS, type PracticeArea, type RadarItem } from "@shared/schema";
 
 export function Radar() {
@@ -17,24 +18,22 @@ export function Radar() {
     items: (items ?? []).filter((i) => i.area === a),
   })).filter((g) => g.items.length);
 
-  const Item = (i: RadarItem) => (
-    <div key={i.id} className="px-4 py-3">
-      <div className="font-medium text-[#0D332B]">
-        {i.url ? (
-          <a href={i.url} target="_blank" rel="noreferrer" className="hover:underline">
-            {i.title}
-          </a>
-        ) : (
-          i.title
-        )}
-      </div>
-      <div className="mt-0.5 text-xs text-neutral-500">
-        {i.source}
-        {i.publishedAt ? ` · ${i.publishedAt}` : ""}
-      </div>
-      {i.summary && <div className="mt-1 text-sm text-neutral-600">{i.summary}</div>}
-    </div>
-  );
+  const Item = (i: RadarItem) => {
+    const published = dateFmt(i.publishedAt);
+    return (
+      <Link key={i.id} href={`/radar/${i.id}`} className="block px-4 py-3 transition-colors hover:bg-[#0D332B]/5">
+        <div className="font-medium text-[#0D332B]">{i.title}</div>
+        <div className="mt-1 flex items-center gap-2 text-xs text-neutral-500">
+          <span className="rounded-full bg-[#0D332B]/5 px-2 py-0.5 font-medium text-[#0D332B]">{i.source}</span>
+          <span>{published || "datum ni na voljo"}</span>
+          {i.summaryTeam && (
+            <span className="rounded-full bg-[#C9A34A]/15 px-2 py-0.5 font-medium text-[#8a6d1f]">Povzetek pripravljen</span>
+          )}
+        </div>
+        {i.summary && <div className="mt-1 text-sm text-neutral-600">{i.summary}</div>}
+      </Link>
+    );
+  };
 
   return (
     <div>
