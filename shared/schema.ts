@@ -67,7 +67,7 @@ export const AGREEMENT_TYPES = ["narocilnica", "pogodba", "ustno", "mail"] as co
 export type AgreementType = (typeof AGREEMENT_TYPES)[number];
 
 /** Cenik units. */
-export const SERVICE_UNITS = ["ura", "mesec", "kos"] as const;
+export const SERVICE_UNITS = ["ura", "mesec", "kos", "min", "paket", "dan", "projekt", "km", "odstotek"] as const;
 export type ServiceUnit = (typeof SERVICE_UNITS)[number];
 
 /** Deadline severity, 1 (low) .. 3 (critical). */
@@ -318,6 +318,8 @@ export const services = pgTable("services", {
   unit: text("unit").$type<ServiceUnit>().notNull().default("ura"),
   pricePO: numeric("price_po", { precision: 10, scale: 2 }), // pravna oseba
   priceFO: numeric("price_fo", { precision: 10, scale: 2 }), // fizična oseba
+  pricePOForeign: numeric("price_po_foreign", { precision: 10, scale: 2 }), // Vrednost PO - tujina
+  priceNote: text("price_note"), // prosti opis nenumerične cene (npr. "po dogovoru", "od 3 do 7 %")
   createdAt: timestamp("created_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
   updatedAt: timestamp("updated_at").default(sql`CURRENT_TIMESTAMP`).notNull(),
 });
@@ -328,6 +330,8 @@ export const insertServiceSchema = createInsertSchema(services, {
   unit: () => z.enum(SERVICE_UNITS).default("ura"),
   pricePO: () => z.coerce.number().min(0).max(1000000).nullable().optional(),
   priceFO: () => z.coerce.number().min(0).max(1000000).nullable().optional(),
+  pricePOForeign: () => z.coerce.number().min(0).max(1000000).nullable().optional(),
+  priceNote: (s) => s.max(200).nullable().optional(),
 }).omit({ id: true, createdAt: true, updatedAt: true });
 
 export const updateServiceSchema = insertServiceSchema.partial();

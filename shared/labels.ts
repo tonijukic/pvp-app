@@ -61,6 +61,12 @@ export const SERVICE_UNIT_LABELS: Record<ServiceUnit, string> = {
   ura: "ura",
   mesec: "mesec",
   kos: "kos",
+  min: "minuta",
+  paket: "paket",
+  dan: "dan",
+  projekt: "projekt",
+  km: "km",
+  odstotek: "%",
 };
 
 export const CLIENT_KIND_LABELS: Record<ClientKind, string> = {

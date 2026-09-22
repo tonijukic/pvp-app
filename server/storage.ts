@@ -479,6 +479,8 @@ export class MemStorage implements IStorage {
       unit: s.unit,
       pricePO: numStr(s.pricePO),
       priceFO: numStr(s.priceFO),
+      pricePOForeign: numStr(s.pricePOForeign),
+      priceNote: s.priceNote ?? null,
       createdAt: now,
       updatedAt: now,
     };
@@ -495,6 +497,8 @@ export class MemStorage implements IStorage {
       ...("unit" in patch && patch.unit !== undefined ? { unit: patch.unit } : {}),
       ...("pricePO" in patch ? { pricePO: numStr(patch.pricePO) } : {}),
       ...("priceFO" in patch ? { priceFO: numStr(patch.priceFO) } : {}),
+      ...("pricePOForeign" in patch ? { pricePOForeign: numStr(patch.pricePOForeign) } : {}),
+      ...("priceNote" in patch ? { priceNote: patch.priceNote ?? null } : {}),
       updatedAt: new Date(),
     };
     this.services.set(id, next);
@@ -924,6 +928,8 @@ export class DbStorage implements IStorage {
         unit: s.unit,
         pricePO: numStr(s.pricePO),
         priceFO: numStr(s.priceFO),
+        pricePOForeign: numStr(s.pricePOForeign),
+        priceNote: s.priceNote ?? null,
       })
       .returning();
     return row;
@@ -935,6 +941,8 @@ export class DbStorage implements IStorage {
     if (patch.unit !== undefined) set.unit = patch.unit;
     if ("pricePO" in patch) set.pricePO = numStr(patch.pricePO);
     if ("priceFO" in patch) set.priceFO = numStr(patch.priceFO);
+    if ("pricePOForeign" in patch) set.pricePOForeign = numStr(patch.pricePOForeign);
+    if ("priceNote" in patch) set.priceNote = patch.priceNote ?? null;
     const [row] = await this.db.update(services).set(set).where(eq(services.id, id)).returning();
     return row;
   }

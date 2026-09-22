@@ -43,6 +43,13 @@
       "when": 1789594600000,
       "tag": "0005_radar_ai",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1789594700000,
+      "tag": "0006_cenik_foreign_note",
+      "breakpoints": true
     }
   ]
 }
