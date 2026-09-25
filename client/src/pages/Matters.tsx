@@ -36,13 +36,13 @@ export function Matters() {
   return (
     <div>
       <div className="mb-4 flex items-center justify-between">
-        <h1 className="text-xl font-semibold text-[#0D332B]">Naloge</h1>
+        <h1 className="text-xl font-semibold text-[#0D332B]">Storitve</h1>
         {me?.role === "admin" && (
           <button
             onClick={() => setOpen((v) => !v)}
             className="rounded-lg bg-[#0D332B] px-3 py-1.5 text-sm font-medium text-white"
           >
-            {open ? "Prekliči" : "+ Nova naloga"}
+            {open ? "Prekliči" : "+ Nova storitev"}
           </button>
         )}
       </div>
@@ -74,9 +74,9 @@ export function Matters() {
       {isLoading ? (
         <p className="text-neutral-500">Nalagam…</p>
       ) : !matters?.length ? (
-        <p className="text-neutral-500">Ni nalog.</p>
+        <p className="text-neutral-500">Ni storitev.</p>
       ) : !filtered.length ? (
-        <p className="text-neutral-500">Ni nalog za izbrane filtre.</p>
+        <p className="text-neutral-500">Ni storitev za izbrane filtre.</p>
       ) : (
         <div className="divide-y divide-neutral-200 overflow-hidden rounded-xl border border-neutral-200 bg-white">
           {filtered.map((m) => (
@@ -154,7 +154,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
   };
 
   const showHourly = f.billingType === "po_urah" || f.billingType === "pausal_ure";
-  const showFlat = f.billingType === "pausal" || f.billingType === "pausal_ure";
+  const showFlat = f.billingType === "pausal" || f.billingType === "pausal_ure" || f.billingType === "projekt";
   const showPausalUre = f.billingType === "pausal_ure";
   const showWaiting = f.status === "caka";
 
@@ -198,7 +198,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
         </select>
         {!clients?.length && <span className="mt-1 block text-xs text-amber-700">Najprej dodaj stranke v zavihku „Stranke“.</span>}
       </label>
-      <label className="text-sm">Opis naloge<input className={input} value={f.title} onChange={(e) => set("title", e.target.value)} /></label>
+      <label className="text-sm">Podrobnejši opis storitve<input className={input} value={f.title} onChange={(e) => set("title", e.target.value)} /></label>
       <label className="text-sm">Področje
         <select className={input} value={f.area} onChange={(e) => set("area", e.target.value)}>
           {PRACTICE_AREAS.map((a) => <option key={a} value={a}>{AREA_LABELS[a]}</option>)}
@@ -252,7 +252,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       {showPausalUre && (
         <label className="text-sm">Znižana postavka nad kvoto (€/h)<input type="number" step="0.01" className={input} value={f.reducedRate} onChange={(e) => set("reducedRate", e.target.value)} /></label>
       )}
-      <label className="text-sm">Nosilec (kdo dela na nalogi)
+      <label className="text-sm">Nosilec (kdo dela na storitvi)
         <select className={input} value={f.assignedTo} onChange={(e) => set("assignedTo", e.target.value)}>
           <option value="">— nedodeljeno —</option>
           {members.map((mm) => <option key={mm.username} value={mm.username}>{mm.displayName}{mm.role === "admin" ? " (admin)" : ""}</option>)}
@@ -261,7 +261,7 @@ function CreateForm({ onDone }: { onDone: () => void }) {
       {err && <div className="text-sm text-red-600 sm:col-span-2">{err}</div>}
       <div className="sm:col-span-2">
         <button disabled={mut.isPending} className="rounded-lg bg-[#C9A34A] px-4 py-2 text-sm font-semibold text-[#0D332B]">
-          {mut.isPending ? "Shranjujem…" : "Shrani nalogo"}
+          {mut.isPending ? "Shranjujem…" : "Shrani storitev"}
         </button>
       </div>
     </form>

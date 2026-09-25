@@ -22,7 +22,7 @@ export function Cenik() {
           {creating ? "Prekliči" : "+ Nova storitev"}
         </button>
       </div>
-      <p className="mb-3 text-sm text-neutral-500">Storitve in cene. PO = pravna oseba, FO = fizična oseba. Cene se pri nalogi ponudijo glede na vrsto stranke.</p>
+      <p className="mb-3 text-sm text-neutral-500">Storitve in cene. PO = pravna oseba, FO = fizična oseba. Cene se pri storitvi ponudijo glede na vrsto stranke.</p>
 
       {creating && <ServiceForm onDone={() => { setCreating(false); invalidate(); }} />}
 

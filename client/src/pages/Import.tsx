@@ -101,7 +101,7 @@ export function Import() {
         <textarea className={input} rows={6} value={strankeCsv} onChange={(e) => { setStrankeCsv(e.target.value); reset(); }} placeholder={STRANKE_COLS.join(",")} />
 
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-[#0D332B]">2. Naloge</h2>
+          <h2 className="text-lg font-semibold text-[#0D332B]">2. Storitve</h2>
           <button onClick={() => download("naloge-predloga.csv", ZADEVE_COLS, ZADEVE_EXAMPLE)} className="text-sm text-[#0D332B] underline">Prenesi predlogo CSV</button>
         </div>
         <textarea className={input} rows={6} value={zadeveCsv} onChange={(e) => { setZadeveCsv(e.target.value); reset(); }} placeholder={ZADEVE_COLS.join(",")} />
@@ -129,11 +129,11 @@ export function Import() {
 }
 
 function Result({ result, committed }: { result: ImportResult; committed: boolean }) {
-  const sheetLabel = (s: "stranke" | "zadeve" | "roki") => (s === "stranke" ? "Stranke" : s === "zadeve" ? "Naloge" : "Roki");
+  const sheetLabel = (s: "stranke" | "zadeve" | "roki") => (s === "stranke" ? "Stranke" : s === "zadeve" ? "Storitve" : "Roki");
   if (committed) {
     return (
       <div className="rounded-xl border border-green-200 bg-green-50 p-4 text-sm text-green-800">
-        Uvoženo: <b>{result.created.stranke}</b> strank, <b>{result.created.zadeve}</b> nalog in <b>{result.created.roki}</b> rokov. Ekipa lahko začne.
+        Uvoženo: <b>{result.created.stranke}</b> strank, <b>{result.created.zadeve}</b> storitev in <b>{result.created.roki}</b> rokov. Ekipa lahko začne.
       </div>
     );
   }
@@ -142,7 +142,7 @@ function Result({ result, committed }: { result: ImportResult; committed: boolea
       <div className={`rounded-xl border p-4 text-sm ${result.errors.length ? "border-amber-200 bg-amber-50 text-amber-800" : "border-green-200 bg-green-50 text-green-800"}`}>
         {result.errors.length
           ? `Predogled: ${result.errors.length} napak — popravi in ponovno preveri. Nič ni bilo zapisano.`
-          : `Predogled OK: pripravljenih ${result.willCreate.stranke} strank, ${result.willCreate.zadeve} nalog in ${result.willCreate.roki} rokov. Klikni „Uvozi“.`}
+          : `Predogled OK: pripravljenih ${result.willCreate.stranke} strank, ${result.willCreate.zadeve} storitev in ${result.willCreate.roki} rokov. Klikni „Uvozi“.`}
       </div>
       {result.errors.length > 0 && (
         <div className="overflow-hidden rounded-xl border border-neutral-200 bg-white">
@@ -183,7 +183,7 @@ function Spec() {
           </table>
         </div>
         <div>
-          <div className="mb-1 font-semibold">Naloge — ena vrstica na nalogo</div>
+          <div className="mb-1 font-semibold">Storitve — ena vrstica na storitev</div>
           <table className="w-full border-collapse">
             <tbody>
               <Row c="koda" o="da" v="poljubna kratka oznaka (Z001…), unikatna — poveže z roki" />

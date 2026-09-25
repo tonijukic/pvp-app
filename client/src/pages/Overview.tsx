@@ -73,9 +73,9 @@ function NextBadge({ dueDate }: { dueDate: string }) {
 function Empty() {
   return (
     <div className="rounded-xl border border-dashed border-neutral-300 bg-white p-8 text-center text-neutral-500">
-      Ni nalog.{" "}
+      Ni storitev.{" "}
       <Link href="/zadeve" className="text-[#0D332B] underline">
-        Dodaj prvo nalogo
+        Dodaj prvo storitev
       </Link>
       .
     </div>

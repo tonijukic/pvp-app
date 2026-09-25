@@ -33,7 +33,7 @@ export const PRACTICE_AREAS = [
 export type PracticeArea = (typeof PRACTICE_AREAS)[number];
 
 /** Billing model per matter. */
-export const BILLING_TYPES = ["pausal", "po_urah", "pausal_ure"] as const;
+export const BILLING_TYPES = ["pausal", "po_urah", "pausal_ure", "projekt"] as const;
 export type BillingType = (typeof BILLING_TYPES)[number];
 
 /** Matter lifecycle phase (incl. Nina's final-check gate before closing). */

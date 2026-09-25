@@ -39,7 +39,13 @@ export async function runSummary(opts: { month?: string; dryRun?: boolean } = {}
     ]);
     const hours = time.reduce((s, t) => s + Number(t.hours), 0);
     const costsTotal = costs.reduce((s, c) => s + Number(c.amount), 0);
-    if (hours === 0 && costsTotal === 0 && matter.billingType !== "pausal" && matter.billingType !== "pausal_ure")
+    if (
+      hours === 0 &&
+      costsTotal === 0 &&
+      matter.billingType !== "pausal" &&
+      matter.billingType !== "pausal_ure" &&
+      matter.billingType !== "projekt"
+    )
       continue;
 
     // Hours broken down per collaborator.
@@ -53,7 +59,8 @@ export async function runSummary(opts: { month?: string; dryRun?: boolean } = {}
       .sort((a, b) => b.hours - a.hours);
 
     let billable: number | null = null;
-    if (matter.billingType === "pausal") billable = matter.flatFee !== null ? Number(matter.flatFee) : null;
+    if (matter.billingType === "pausal" || matter.billingType === "projekt")
+      billable = matter.flatFee !== null ? Number(matter.flatFee) : null;
     else if (matter.billingType === "pausal_ure") {
       // pavšal osnova (flatFee) + ure nad kvoto × znižana postavka
       const base = matter.flatFee !== null ? Number(matter.flatFee) : 0;

@@ -4,10 +4,9 @@ import { logout } from "../lib/api";
 
 const NAV = [
   { href: "/", label: "Nadzorna plošča" },
-  { href: "/zadeve", label: "Naloge" },
+  { href: "/zadeve", label: "Storitve" },
   { href: "/roki", label: "Roki" },
   { href: "/radar", label: "Radar" },
-  { href: "/ure", label: "Ure" },
 ];
 
 export function Layout({

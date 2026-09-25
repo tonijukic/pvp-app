@@ -30,7 +30,7 @@ export function Stranke() {
           {creating ? "Prekliči" : "+ Nova stranka"}
         </button>
       </div>
-      <p className="mb-3 text-sm text-neutral-500">Baza strank in potencialnih strank. Kratice določiš sama - te se pri nalogah izbirajo iz spustnega seznama.</p>
+      <p className="mb-3 text-sm text-neutral-500">Baza strank in potencialnih strank. Kratice določiš sama - te se pri storitvah izbirajo iz spustnega seznama.</p>
 
       <div className="mb-3 flex gap-1 text-sm">
         {(["vse", "aktivna", "potencialna"] as Filter[]).map((f) => (

@@ -42,7 +42,7 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
 
   return (
     <div>
-      <Link href="/zadeve" className="text-sm text-neutral-500">← Naloge</Link>
+      <Link href="/zadeve" className="text-sm text-neutral-500">← Storitve</Link>
       <div className="mt-1 mb-4">
         <h1 className="text-xl font-semibold text-[#0D332B]">{matter.client}</h1>
         <div className="text-sm text-neutral-500">
@@ -50,6 +50,7 @@ export function MatterDetail({ id, me }: { id: string; me: Me }) {
           {matter.serviceCode ? ` · ${matter.serviceCode}` : ""} · {BILLING_LABELS[matter.billingType]}
           {(matter.billingType === "po_urah" || matter.billingType === "pausal_ure") && matter.hourlyRate ? ` (${euro(Number(matter.hourlyRate))}/h)` : ""}
           {(matter.billingType === "pausal" || matter.billingType === "pausal_ure") && matter.flatFee ? ` (${euro(Number(matter.flatFee))} pavšal)` : ""}
+          {matter.billingType === "projekt" && matter.flatFee ? ` (${euro(Number(matter.flatFee))} fiksno)` : ""}
         </div>
         <div className="mt-2 flex flex-wrap items-center gap-2">
           <span className="text-sm text-neutral-500">Nosilec:</span>
@@ -200,7 +201,7 @@ function DeadlineTab({ id }: { id: string }) {
         <select className={input} value={severity} onChange={(e) => setSeverity(e.target.value)}>
           {[1, 2, 3].map((s) => <option key={s} value={s}>{SEVERITY_LABELS[s]}</option>)}
         </select>
-        <input type="number" className={input} title="opomni X dni prej" value={remind} onChange={(e) => setRemind(e.target.value)} />
+        <input type="number" className={input} title="Opomni koliko dni pred rokom" placeholder="Opomni (dni prej)" value={remind} onChange={(e) => setRemind(e.target.value)} />
         <select className={input} title="vrsta roka" value={kind} onChange={(e) => setKind(e.target.value)}>
           {DEADLINE_KINDS.map((k) => <option key={k} value={k}>{DEADLINE_KIND_LABELS[k]}</option>)}
         </select>

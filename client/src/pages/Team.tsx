@@ -45,7 +45,7 @@ export function Team() {
               <div className="flex items-center justify-between">
                 <Assignee name={name} />
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-0.5 text-sm text-neutral-500">
-                  <span>{items.length} nalog</span>
+                  <span>{items.length} storitev</span>
                   <span>{hoursFmt(hours)}</span>
                   <span>{openDl} odprtih rokov</span>
                   {overdue > 0 && <span className="font-medium text-red-600">{overdue} zamujenih</span>}
